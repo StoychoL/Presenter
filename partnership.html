@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Partnership Program — Diageo</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0b0b0d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <main>
+    <div class="tier-tabs" id="tier-tabs"></div>
+    <div class="tier-panel" id="tier-panel">
+      <div class="tier-hero"><img id="tier-hero-img" alt="" /></div>
+      <div class="tier-reward" id="tier-reward"></div>
+      <div id="tier-sections"></div>
+    </div>
+  </main>
+
+  <div class="progress-badge" id="progress-badge">
+    <div class="frac" id="progress-frac">0 / 0</div>
+    <div class="pct" id="progress-pct">0%</div>
+    <div class="target-edit" id="target-edit">edit target</div>
+  </div>
+
+  <div class="reset-bar">
+    <button class="btn secondary full" id="reset-btn">Reset / New store</button>
+  </div>
+
+  <script src="js/catalog.js"></script>
+  <script src="js/layout-pp.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/partnership.js"></script>
+  <script>renderNav("partnership");</script>
+</body>
+</html>

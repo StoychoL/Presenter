@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Call File — Diageo</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0b0b0d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <main>
+    <div class="callfile-toolbar">
+      <label class="btn full" for="callfile-input">Upload Call File</label>
+      <input type="file" id="callfile-input" accept=".xls,.xlsx,.csv" hidden />
+      <div class="callfile-meta" id="callfile-meta"></div>
+    </div>
+
+    <div class="search-bar">
+      <input type="search" id="callfile-search" placeholder="Search by store name or postcode" />
+    </div>
+
+    <div class="grade-tabs" id="grade-tabs"></div>
+    <div id="callfile-sections"></div>
+  </main>
+
+  <script src="js/vendor/xlsx.full.min.js"></script>
+  <script src="js/layout-callfile.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/callfile.js"></script>
+  <script>renderNav("callfile");</script>
+</body>
+</html>

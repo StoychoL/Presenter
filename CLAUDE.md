@@ -1,0 +1,46 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+A static, no-build, vanilla JS Progressive Web App: "Diageo Sales Presenter". Used in-store on a phone/tablet by a sales rep to (1) build a live drinks order with running totals for a client, (2) track partnership-program tier progress for a store, and (3) track call-file visit compliance across a rep's store list. There is no backend — all persistence is `localStorage`, all pages are plain HTML files loaded directly.
+
+## Running it
+
+There is no build step, package manager, or test suite. To develop:
+
+- Open `index.html` directly in a browser, or serve the folder with any static server (e.g. `python3 -m http.server`) so the service worker and manifest work correctly (service workers require `http://` or `https://`, not `file://`).
+- After changing any cached file (JS/CSS/HTML/images in `PRECACHE_URLS`), bump `CACHE_NAME` in [service-worker.js](service-worker.js) — otherwise returning clients keep serving stale cached files.
+
+## Architecture
+
+Four pages (`index.html`, `products.html`, `partnership.html`, `callfile.html`) share a common set of scripts loaded via `<script>` tags (no modules/bundler). Load order matters: `catalog.js` and the relevant `layout-*.js` must load before `storage.js`, which must load before the page's own script (`products.js` / `partnership.js` / `callfile.js`), since each builds on globals set by the previous one.
+
+**Data layering** — each product is defined once and composed across three global objects:
+- `window.CATALOG` ([js/catalog.js](js/catalog.js)) — the single source of truth per product: id → `{ name, image, caseSize, bookerPrice, bestwayPrice }`. `caseSize` is used to derive per-bottle price from the case price (case price ÷ caseSize). Wholesaler prices here are placeholders — actual working prices live in `localStorage`, not this file.
+- `window.PRODUCTS_LAYOUT` ([js/layout-products.js](js/layout-products.js)) — ordered sections of product ids for the Product Presenter page. Just grouping/ordering, no pricing or coordinates.
+- `window.PP_LAYOUT` ([js/layout-pp.js](js/layout-pp.js)) — tier definitions (Tier 1/2/3) for the Partnership Program page. Tier 3 is the base "must stock" range (sections: "Core Range", "Bonus Range"). Tier 1 and Tier 2 each widen their *own* Core Range independently rather than sharing one array: Tier 2 folds only `CrushLL`/`CrushMP`/`CirocBlue70cl` into Core Range (so it keeps a smaller Bonus Range and has no Premium Spirits section — Ciroc Blue was its only item); Tier 1 folds the *entire* Bonus Range into Core Range (so it has no Bonus Range section at all, only Core Range + Premium Spirits). "Core Range" merges what used to be three separate bands (core spirits, Guinness, RTD) into one section, per Diageo's reference diagrams. "Bonus Range" items are flexible either/or slots shown as individually tickable rather than enforced pairs. Each tier's Core Range section carries `isCore: true` — this is a mandatory gate, not just a label (see below), so match on that flag rather than the `label` string, and rather than assuming every tier has the same three named sections.
+- `window.CALLFILE_GRADES` / `window.CALLFILE_GRADE_CONFIG` ([js/layout-callfile.js](js/layout-callfile.js)) — the three store grades (display order: Platinum, Gold, Silver) and their fixed visit rule: `cadenceWeeks` (how often a store is due) and `visitsRequired` (visits needed in a calendar month to go green). Platinum = 2 weeks / 2 visits; Gold and Silver = 4 weeks / 1 visit each. This is a deliberate override of the uploaded sheet's own `FREQUENCY`/`VISITCADENCE` columns (which put Silver at 8 weeks) — the business rule here always wins over whatever the export says.
+
+**State** — [js/storage.js](js/storage.js) is the only module that touches `localStorage`, under key `diageoPresenter` with a `SCHEMA_VERSION` (currently 5). It distinguishes:
+- Persisted across resets: `prices` (per-product, per-wholesaler case prices), `targetCounts` (per-tier required-product counts), and `callfile` (uploaded stores + their visit history) — all user-edited.
+- Session-only, cleared by each page's "Reset" button (Call File has no reset button — there's nothing to reset, visit history is meant to persist): `productsSession` (quantities, units, active wholesaler), `ppSession` (active tier, checked products), and `callfileSession` (active grade tab — persists across reloads but isn't cleared by a reset flow).
+
+If `parsed.version !== SCHEMA_VERSION`, `loadState()` discards saved data entirely and falls back to defaults — bump `SCHEMA_VERSION` in the same commit as any shape change to `defaultState()`, and be aware this wipes all users' saved prices/targets/call file.
+
+**Page scripts** ([js/products.js](js/products.js), [js/partnership.js](js/partnership.js), [js/callfile.js](js/callfile.js)) each follow the same pattern: a pure `render()` that reads `Storage.loadState()` and the relevant layout/catalog to rebuild the DOM from scratch (via `innerHTML` string templates, not diffing), plus a single delegated click listener per container keyed off `data-action`/`data-id` attributes. There's no framework — every UI update goes through a full `render()` call.
+
+**Poster-matched theme (Partnership Program)** — `partnership.js`'s `render()` also sets `#tier-hero-img`'s `src` from a `HERO_IMAGES` map to show that tier's poster image, and sets `#tier-panel`'s class to `theme-silver` (Tier 3/1) or `theme-gold` (Tier 2). `css/styles.css` reads those theme classes to color the `.category` bands so the checklist visually matches the poster shown above it.
+
+**Core Range gating (Partnership Program)** — Core Range is the mandatory "must stock" baseline, so a tier can't reach its 90%+ reward threshold on Bonus/Premium items alone. `coreStats()` in `partnership.js` finds the section with `isCore: true` and checks whether every item in it is ticked; `tierStats()` folds this in as `pct = coreComplete ? realPct : Math.min(realPct, 89)` — the displayed percentage itself is capped at 89%, not just the celebration badge, whenever Core Range is incomplete. The Core Range `<h3>` also gets a live `.core-status` tag (amber `checked/total`, or green "✓ Complete") so the rep can see what's blocking the reward. This has no persisted state — it's pure derived math from `ppSession.checked`, recomputed on every `render()`.
+
+**Call File** ([js/callfile.js](js/callfile.js), [callfile.html](callfile.html)) — lets a rep upload their call-file export (`.xls`/`.xlsx`/`.csv`, parsed client-side via the vendored [js/vendor/xlsx.full.min.js](js/vendor/xlsx.full.min.js) — SheetJS, since there's no package manager to pull it in another way) and track monthly visit compliance per store.
+- Only `OUTLETNAME` / `OUTLETGRADE` / `POSTCODE` are read from the sheet; everything else (DIAGEOID, FREQUENCY, VISITCADENCE, TERRITORY, ...) is ignored by design.
+- Stores are keyed by a normalized `name|postcode` string (`Storage.storeKey`), not a spreadsheet id — re-uploading a later export matches existing stores by that key and keeps their visit history; a genuine name+postcode collision within one upload (two distinct accounts sharing both) is suffixed (`#2`) so neither silently overwrites the other. See `Storage.importCallfile`.
+- Status colour is *derived at render time*, never stored: `callfile.js`'s `storeStatus()` counts how many dates in a store's `visits` array fall in the current calendar month and compares against `CALLFILE_GRADE_CONFIG[grade].visitsRequired`. This is what makes the "every store goes back to red at the start of a new month" behavior automatic — there's no reset job, it just falls out of the date math. Visits are never deduped by date (`Storage.logVisit`), since a Platinum store can legitimately be visited twice in one day and both must count.
+- The grade tabs (Platinum/Gold/Silver, one visible at a time) are a UI-only filter — `callfileSession.activeGrade` just controls which pre-computed group is rendered.
+
+**Nav/shell** — [js/nav.js](js/nav.js) injects the shared header into every page (called as `renderNav("home"|"products"|"partnership"|"callfile")` from an inline `<script>` at the bottom of each HTML file) and registers the service worker. It is the only place that knows the page list.
+
+**Offline support** — [service-worker.js](service-worker.js) is cache-first: it precaches an explicit file list (`PRECACHE_URLS`, including product images, the `images/PP/tier-*.png` poster images, and the vendored xlsx library) on install, serves from cache first on fetch, and falls back to network only on cache miss. On activate it deletes any cache not matching the current `CACHE_NAME`. Because of this, a browser that already has the app open needs a hard refresh (or full close/reopen if installed as a home-screen PWA) to pick up a new `CACHE_NAME` — bumping the constant alone doesn't update already-open clients.

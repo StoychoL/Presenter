@@ -1,0 +1,637 @@
+:root {
+  --bg: #f4f2f5;
+  --surface: #ffffff;
+  --ink: #17151a;
+  --ink-soft: #5a5560;
+  --accent: #b5136b;
+  --accent-dark: #7d0d4a;
+  --gold: #c9a24b;
+  --good: #1f8a4c;
+  --warn: #d98c1f;
+  --bad: #c62828;
+  --border: #e3dfe6;
+  --bar-bg: #0b0b0d;
+  --radius: 16px;
+  --tap: 48px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 18px;
+  line-height: 1.4;
+  -webkit-tap-highlight-color: transparent;
+}
+
+img { max-width: 100%; display: block; }
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  border: none;
+  -webkit-tap-highlight-color: transparent;
+}
+button:active { transform: scale(0.97); }
+
+input {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* ---------- App shell / nav ---------- */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+}
+
+.app-header .brand {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--accent-dark);
+  text-decoration: none;
+  font-size: 20px;
+  margin-right: auto;
+}
+
+.app-nav {
+  display: flex;
+  gap: 6px;
+}
+
+.app-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 16px;
+  border-radius: 999px;
+  text-decoration: none;
+  color: var(--ink-soft);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.app-nav a.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+main {
+  padding: 0 0 220px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* ---------- Home / Hero ---------- */
+.hero-banner img {
+  width: 100%;
+  height: auto;
+}
+
+.home-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 20px 16px;
+}
+
+@media (max-width: 640px) {
+  .home-actions { grid-template-columns: 1fr; }
+}
+
+.nav-card {
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 20px;
+  text-decoration: none;
+  color: var(--ink);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.nav-card h2 {
+  margin: 0 0 6px;
+  color: var(--accent-dark);
+  font-size: 24px;
+}
+
+.nav-card p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 16px;
+}
+
+/* ---------- Category sections ---------- */
+.category {
+  margin: 20px 16px;
+}
+
+.category h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  color: var(--accent-dark);
+}
+
+.core-status {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  vertical-align: middle;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.core-status.complete { background: rgba(31, 138, 76, 0.12); color: var(--good); }
+.core-status.partial { background: rgba(217, 140, 31, 0.14); color: var(--warn); }
+
+/* ---------- Product tile grid ---------- */
+.tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 14px;
+}
+
+.tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.tile img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+
+.price-pill {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 6px;
+  text-align: center;
+  min-height: 38px;
+}
+
+.unit-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.unit-toggle button {
+  flex: 1;
+  min-height: 38px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.unit-toggle button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.stepper button {
+  width: var(--tap);
+  height: var(--tap);
+  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent-dark);
+  flex-shrink: 0;
+}
+
+.stepper button:disabled { opacity: 0.35; }
+
+.stepper .qty {
+  flex: 1;
+  text-align: center;
+  font-weight: 700;
+  font-size: 20px;
+}
+
+/* ---------- Partnership Program tick boxes ---------- */
+.tick-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--tap);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.tick-row input[type="checkbox"] {
+  width: 24px;
+  height: 24px;
+  accent-color: var(--good);
+}
+
+.tick-row.checked {
+  background: rgba(31, 138, 76, 0.12);
+  border-color: var(--good);
+  color: var(--good);
+}
+
+/* ---------- Wholesaler tabs (Products) ---------- */
+.wholesaler-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 16px 16px 0;
+}
+
+.wholesaler-tabs button {
+  flex: 1;
+  min-height: var(--tap);
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+}
+
+.wholesaler-tabs button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap);
+  padding: 0 18px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+}
+.btn.secondary {
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--border);
+}
+.btn.full { width: 100%; }
+
+/* ---------- Sticky order summary (Products) ---------- */
+.summary-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  background: var(--bar-bg);
+  color: #fff;
+  padding: 12px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  box-shadow: 0 -4px 14px rgba(0,0,0,0.25);
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 15px;
+  color: #cfcad4;
+  padding: 2px 0;
+}
+
+.summary-row.total {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--gold);
+  padding-top: 4px;
+}
+
+.summary-bar .btn { margin-top: 10px; }
+
+/* ---------- Partnership Program ---------- */
+.tier-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 16px 16px 0;
+}
+
+.tier-tabs button {
+  flex: 1;
+  min-height: var(--tap);
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.tier-tabs button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.progress-badge {
+  position: fixed;
+  top: 70px;
+  right: 12px;
+  z-index: 25;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 10px 14px;
+  text-align: center;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+  min-width: 96px;
+}
+
+.progress-badge .frac {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.progress-badge .pct {
+  font-size: 15px;
+  color: var(--ink-soft);
+}
+
+.progress-badge .target-edit {
+  font-size: 12px;
+  color: var(--accent-dark);
+  text-decoration: underline;
+  margin-top: 4px;
+  cursor: pointer;
+}
+
+.progress-badge.celebrate {
+  background: linear-gradient(135deg, var(--gold), #f4dd8b);
+  border-color: var(--gold);
+  animation: pulse 0.6s ease;
+}
+
+.progress-badge.celebrate .pct,
+.progress-badge.celebrate .frac { color: #4a3a06; }
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+.reset-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  background: var(--bar-bg);
+  padding: 12px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+.tier-reward {
+  margin: 10px 16px 0;
+  color: var(--ink-soft);
+  font-size: 15px;
+}
+
+/* ---------- Partnership Program — poster-matched theme ---------- */
+.theme-silver { --tier-band-bg: #eef0f2; --tier-band-border: #c7ccd1; --tier-label: #4c545c; }
+.theme-gold { --tier-band-bg: #f8efdb; --tier-band-border: var(--gold); --tier-label: #8a6a1f; }
+
+.tier-hero {
+  margin: 14px 16px 0;
+  border: 1px solid var(--tier-band-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+}
+
+.tier-hero img {
+  width: 100%;
+  height: auto;
+}
+
+.tier-panel .category {
+  background: var(--tier-band-bg);
+  border: 1px solid var(--tier-band-border);
+  border-radius: var(--radius);
+  padding: 12px 12px 14px;
+  margin: 14px 16px;
+}
+
+.tier-panel .category h3 {
+  color: var(--tier-label);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 14px;
+}
+
+.tier-panel .tile-grid {
+  gap: 8px;
+}
+
+.pp-tile {
+  padding: 6px;
+  gap: 6px;
+}
+
+/* ---------- Call File ---------- */
+.callfile-toolbar {
+  padding: 16px 16px 0;
+}
+
+.callfile-meta {
+  margin-top: 8px;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.search-bar {
+  padding: 14px 16px 0;
+}
+
+.search-bar input {
+  width: 100%;
+  min-height: var(--tap);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 14px;
+}
+
+.grade-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 16px 16px 0;
+}
+
+.grade-tab {
+  flex: 1;
+  min-height: 52px;
+  border-radius: 12px;
+  font-weight: 700;
+  color: #fff;
+  opacity: 0.5;
+}
+
+.grade-tab-count {
+  font-weight: 600;
+  opacity: 0.85;
+  font-size: 13px;
+  margin-left: 4px;
+}
+
+.grade-tab.active {
+  opacity: 1;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+}
+
+.grade-tab-platinum { background: #5b6472; }
+.grade-tab-gold { background: var(--gold); }
+.grade-tab-silver { background: #9aa1a8; }
+
+.grade-summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 14px 16px 10px;
+}
+
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 2px;
+}
+.dot.red { background: var(--bad); }
+.dot.amber { background: var(--warn); }
+.dot.green { background: var(--good); }
+
+.store-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 16px 20px;
+}
+
+.store-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 6px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.store-card.status-red { border-left-color: var(--bad); }
+.store-card.status-amber { border-left-color: var(--warn); }
+.store-card.status-green { border-left-color: var(--good); }
+
+.store-info {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+.store-name {
+  font-weight: 700;
+}
+
+.store-postcode {
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.store-dates {
+  display: flex;
+  gap: 18px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.store-dates strong {
+  display: block;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.store-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.status-pill {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: var(--bg);
+  color: var(--ink-soft);
+}
+
+.status-red .status-pill { background: rgba(198, 40, 40, 0.12); color: var(--bad); }
+.status-amber .status-pill { background: rgba(217, 140, 31, 0.14); color: var(--warn); }
+.status-green .status-pill { background: rgba(31, 138, 76, 0.12); color: var(--good); }
+
+.btn.small {
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.empty-note {
+  margin: 24px 16px;
+  color: var(--ink-soft);
+  text-align: center;
+}
