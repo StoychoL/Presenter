@@ -151,20 +151,20 @@ function storeKey(name, postcode) {
   return (name || "").trim().toLowerCase() + "|" + (postcode || "").trim().toLowerCase().replace(/\s+/g, "");
 }
 
+// Duplicate rows for the same name+postcode collapse to a single store — the last matching row
+// in the file wins. There's no DIAGEOID to tell a true duplicate apart from two different accounts
+// that coincidentally share a name+postcode, so this is a deliberate simplification: the caller is
+// told how many rows collapsed (duplicateCount) so it isn't fully silent.
 function importCallfile(fileName, rows) {
   const state = loadState();
   const existing = state.callfile.stores;
   const next = {};
-  const seenInBatch = {};
+  let duplicateCount = 0;
 
   rows.forEach(function (row) {
-    const baseKey = storeKey(row.name, row.postcode);
-    if (!baseKey.replace("|", "")) return;
-    // Two rows can share the same name+postcode but be distinct accounts (different grade,
-    // different real-world outlet) — suffix so neither silently overwrites the other.
-    const occurrence = (seenInBatch[baseKey] || 0) + 1;
-    seenInBatch[baseKey] = occurrence;
-    const key = occurrence === 1 ? baseKey : baseKey + "#" + occurrence;
+    const key = storeKey(row.name, row.postcode);
+    if (!key.replace("|", "")) return;
+    if (next[key]) duplicateCount++;
     const prior = existing[key];
     next[key] = {
       name: row.name,
@@ -182,7 +182,7 @@ function importCallfile(fileName, rows) {
     stores: next
   };
   saveState(state);
-  return state;
+  return { state: state, duplicateCount: duplicateCount };
 }
 
 function setCallfileGrade(grade) {

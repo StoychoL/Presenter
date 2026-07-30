@@ -36,18 +36,39 @@ function tileHtml(id, checked) {
   );
 }
 
+// Some sections (currently only Tier 3's Bonus Range) require at least `min` ticked within a
+// named subgroup rather than either "everything" (isCore) or "nothing" — e.g. 2 of 4 bottles AND
+// 1 of 2 crush flavours. Returns null for sections with no `gate` config.
+function sectionGateStats(state, section) {
+  if (!section.gate) return null;
+  const groups = section.gate.groups.map(function (g) {
+    const checked = g.items.filter(function (id) { return !!state.ppSession.checked[id]; }).length;
+    return { label: g.label, checked: checked, min: g.min, total: g.items.length, met: checked >= g.min };
+  });
+  return { groups: groups, complete: groups.every(function (g) { return g.met; }) };
+}
+
+function gateTagHtml(section, state, stats) {
+  if (section.isCore) {
+    return ' <span class="core-status ' + (stats.coreComplete ? "complete" : "partial") + '">' +
+      (stats.coreComplete ? "✓ Complete" : stats.coreCheckedCount + "/" + stats.coreTotal) +
+    "</span>";
+  }
+  const gate = sectionGateStats(state, section);
+  if (!gate) return "";
+  const parts = gate.groups.map(function (g) { return g.label + " " + g.checked + "/" + g.total; }).join(" · ");
+  return ' <span class="core-status ' + (gate.complete ? "complete" : "partial") + '">' +
+    (gate.complete ? "✓ " + parts : parts) +
+  "</span>";
+}
+
 function sectionHtml(section, state, stats) {
   const tiles = section.items.map(function (id) {
     return tileHtml(id, !!state.ppSession.checked[id]);
   }).join("");
-  const coreTag = section.isCore
-    ? ' <span class="core-status ' + (stats.coreComplete ? "complete" : "partial") + '">' +
-        (stats.coreComplete ? "✓ Complete" : stats.coreCheckedCount + "/" + stats.coreTotal) +
-      "</span>"
-    : "";
   return (
     '<section class="category">' +
-      "<h3>" + escAttr(section.label) + coreTag + "</h3>" +
+      "<h3>" + escAttr(section.label) + gateTagHtml(section, state, stats) + "</h3>" +
       '<div class="tile-grid">' + tiles + "</div>" +
     "</section>"
   );
@@ -64,6 +85,21 @@ function coreStats(state, tier) {
   return { coreTotal: total, coreCheckedCount: checked, coreComplete: total === 0 || checked === total };
 }
 
+// Builds the tier-reward line's parenthetical from whatever gates the tier actually has, so it
+// never drifts out of sync with layout-pp.js (e.g. Tier 3's Bonus Range quota, Tier 1/2's plain
+// Core Range requirement).
+function gateSummaryText(tier) {
+  const parts = ["Core Range 100% stocked"];
+  tier.sections.forEach(function (section) {
+    if (!section.gate) return;
+    const groupText = section.gate.groups.map(function (g) {
+      return "at least " + g.min + " of " + g.items.length + " " + g.label;
+    }).join(" and ");
+    parts.push(section.label + ": " + groupText);
+  });
+  return parts.join("; ");
+}
+
 function tierStats(state, tierKey) {
   const tier = window.PP_LAYOUT[tierKey];
   const ids = new Set();
@@ -74,11 +110,17 @@ function tierStats(state, tierKey) {
   const realPct = Math.round((checkedCount / target) * 100);
 
   const core = coreStats(state, tier);
-  const pct = core.coreComplete ? realPct : Math.min(realPct, 89);
+  let gatesComplete = core.coreComplete;
+  tier.sections.forEach(function (section) {
+    const gate = sectionGateStats(state, section);
+    if (gate && !gate.complete) gatesComplete = false;
+  });
+  const pct = gatesComplete ? realPct : Math.min(realPct, 89);
 
   return {
     checkedCount: checkedCount, target: target, pct: pct, realPct: realPct,
-    coreComplete: core.coreComplete, coreCheckedCount: core.coreCheckedCount, coreTotal: core.coreTotal
+    coreComplete: core.coreComplete, coreCheckedCount: core.coreCheckedCount, coreTotal: core.coreTotal,
+    gatesComplete: gatesComplete
   };
 }
 
@@ -98,7 +140,7 @@ function render() {
 
   document.getElementById("tier-reward").textContent =
     escAttr(tier.label) + " — £" + tier.reward + " reward at 90%+ of " + state.targetCounts[tierKey] +
-    " required products stocked (Core Range must be 100% stocked first)";
+    " required products stocked (" + gateSummaryText(tier) + ")";
 
   document.getElementById("tier-sections").innerHTML = tier.sections.map(function (section) {
     return sectionHtml(section, state, stats);

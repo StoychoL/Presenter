@@ -176,10 +176,14 @@ document.addEventListener("DOMContentLoaded", function () {
           alert("No usable rows found — expected OUTLETNAME / OUTLETGRADE / POSTCODE columns.");
           return;
         }
-        Storage.importCallfile(file.name, parsed.rows);
+        const result = Storage.importCallfile(file.name, parsed.rows);
         render();
-        if (parsed.skipped) {
-          alert("Loaded " + parsed.rows.length + " stores. Skipped " + parsed.skipped + " row(s) with a missing name or an unrecognized grade.");
+        const notes = [];
+        if (parsed.skipped) notes.push(parsed.skipped + " row(s) skipped (missing name or unrecognized grade)");
+        if (result.duplicateCount) notes.push(result.duplicateCount + " duplicate row(s) collapsed to one store each");
+        if (notes.length) {
+          const storeCount = Object.keys(result.state.callfile.stores).length;
+          alert("Loaded " + storeCount + " stores. " + notes.join("; ") + ".");
         }
       } catch (err) {
         alert("Could not read that file: " + err.message);

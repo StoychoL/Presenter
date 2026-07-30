@@ -8,7 +8,12 @@
 // set independently, they no longer share one array): Tier 2 folds just CrushLL/CrushMP/Ciroc Blue
 // into Core Range, leaving a smaller Bonus Range and no Premium Spirits section (Ciroc Blue was its
 // only item). Tier 1 folds the *entire* Bonus Range into Core Range, leaving only Premium Spirits
-// as a separate (optional) section. Tier 3 is untouched.
+// as a separate (optional) section.
+//
+// Tier 3 keeps its own Bonus Range section but it's no longer purely optional: a section can carry
+// a `gate: { groups: [...] }` config (see partnership.js's sectionGateStats) requiring at least
+// `min` of a named subgroup to be ticked — Tier 3 requires 2 of the 4 bottles AND 1 of the 2 crush
+// flavours before the tier can reach 90%, on top of (not instead of) Core Range being 100% stocked.
 
 const CORE_SPIRITS = [
   "Smirnoff20cl", "Smirnoff35cl", "Smirnoff70Cl", "MiamiPeach70cl", "RaspberryCrush70cl",
@@ -16,7 +21,9 @@ const CORE_SPIRITS = [
 ];
 const GUINNESS = ["Guinness0", "GuinnessDraugh"];
 const RTD_TIER3 = ["RTDVColla", "RTDCM", "RTDGO", "RTDGP", "SmirnoffIce70cl", "SmirnoffIce4pack"];
-const BONUS_RANGE = ["CaptianMorgan35cl", "CaptianMorgan20cl", "GordonsOriginal35cl", "Gordons20cl", "CrushLL", "CrushMP"];
+const BONUS_BOTTLES = ["CaptianMorgan35cl", "CaptianMorgan20cl", "GordonsOriginal35cl", "Gordons20cl"];
+const BONUS_CRUSHES = ["CrushLL", "CrushMP"];
+const BONUS_RANGE = BONUS_BOTTLES.concat(BONUS_CRUSHES);
 
 const CORE_SPIRITS_TIER2 = CORE_SPIRITS.concat(["Baileys70Cl"]);
 const RTD_TIER2 = RTD_TIER3.concat(["RTDRCrush"]);
@@ -54,7 +61,13 @@ window.PP_LAYOUT = {
     label: "Tier 3", reward: 120, targetCount: 20,
     sections: [
       { label: "Core Range", items: CORE_RANGE_TIER3, isCore: true },
-      { label: "Bonus Range", items: BONUS_RANGE }
+      {
+        label: "Bonus Range", items: BONUS_RANGE,
+        gate: { groups: [
+          { label: "bottles", items: BONUS_BOTTLES, min: 2 },
+          { label: "crush", items: BONUS_CRUSHES, min: 1 }
+        ] }
+      }
     ]
   }
 };
