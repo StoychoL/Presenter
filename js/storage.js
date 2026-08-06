@@ -135,6 +135,16 @@ function setTierTarget(tierKey, targetCount) {
   return state;
 }
 
+function selectAllTier(tierKey) {
+  const state = loadState();
+  const tier = window.PP_LAYOUT[tierKey];
+  tier.sections.forEach(function (section) {
+    section.items.forEach(function (id) { state.ppSession.checked[id] = true; });
+  });
+  saveState(state);
+  return state;
+}
+
 function resetPPSession() {
   const state = loadState();
   state.ppSession.checked = {};
@@ -218,6 +228,7 @@ window.Storage = {
   toggleChecked: toggleChecked,
   setActiveTier: setActiveTier,
   setTierTarget: setTierTarget,
+  selectAllTier: selectAllTier,
   resetPPSession: resetPPSession,
   storeKey: storeKey,
   importCallfile: importCallfile,

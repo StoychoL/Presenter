@@ -26,6 +26,20 @@
     <div id="callfile-sections"></div>
   </main>
 
+  <div class="modal-backdrop hidden" id="visit-modal">
+    <div class="modal-card modal-card-narrow">
+      <button class="modal-close" id="visit-modal-close" aria-label="Close">&times;</button>
+      <h2>Log a visit</h2>
+      <p class="modal-store-name" id="visit-modal-store"></p>
+      <label class="field-label" for="visit-date-input">Visit date</label>
+      <input type="date" id="visit-date-input" class="date-input" />
+      <div class="modal-actions">
+        <button class="btn secondary" id="visit-cancel-btn" type="button">Cancel</button>
+        <button class="btn" id="visit-confirm-btn" type="button">Log visit</button>
+      </div>
+    </div>
+  </div>
+
   <script src="js/vendor/xlsx.full.min.js"></script>
   <script src="js/layout-callfile.js"></script>
   <script src="js/nav.js"></script>

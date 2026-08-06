@@ -1,14 +1,17 @@
 // Partnership Program tier grouping — sourced from the user's "PP Teir 1/2/3 plus core" diagrams.
-// Nested structure: Tier 3 is the base "must stock" range; Tier 2 = Tier 3 + 3 new products;
-// Tier 1 = Tier 2 + 4 new products (which land in a new "Premium Spirits" section).
-// "Bonus Range" = the flexible either/or slots (Captain Morgan 35/20cl, Gordon's 35/20cl, a Crush flavour)
-// shown as individual tickable options rather than enforced pairs.
 //
-// Core Range composition now diverges per tier (each tier widens its own mandatory "must stock"
-// set independently, they no longer share one array): Tier 2 folds just CrushLL/CrushMP/Ciroc Blue
-// into Core Range, leaving a smaller Bonus Range and no Premium Spirits section (Ciroc Blue was its
-// only item). Tier 1 folds the *entire* Bonus Range into Core Range, leaving only Premium Spirits
-// as a separate (optional) section.
+// Core Range is the same fixed 17-product "must stock" list (CORE_RANGE_TIER3, isCore: true) for
+// all three tiers — it's the mandatory gate and it never changes shape per tier. What differs per
+// tier is the size of the Bonus/Premium pool built on top of it, which is what grows the
+// required-product target (20 for Tier 3, 25 for Tier 2, 30 for Tier 1).
+//
+// "Bonus Range" = flexible either/or slots (Captain Morgan 35/20cl, Gordon's 35/20cl, a Crush
+// flavour, plus Baileys/RTD Raspberry Crush/Ciroc Blue for Tier 1 & 2) shown as individually
+// tickable options. Tier 1 & 2's non-core sections carry `promoteOnCheck: true`, meaning ticking
+// one of those items visually promotes it into the Core Range section on the page (see
+// partnership.js's jumpedItems/sectionItemsToRender) — purely a display move, the Core-100% gate
+// always means exactly these 17 fixed products. Tier 3's Bonus Range deliberately does NOT set
+// this flag — its items stay put when ticked, unchanged from before.
 //
 // Tier 3 keeps its own Bonus Range section but it's no longer purely optional: a section can carry
 // a `gate: { groups: [...] }` config (see partnership.js's sectionGateStats) requiring at least
@@ -25,36 +28,32 @@ const BONUS_BOTTLES = ["CaptianMorgan35cl", "CaptianMorgan20cl", "GordonsOrigina
 const BONUS_CRUSHES = ["CrushLL", "CrushMP"];
 const BONUS_RANGE = BONUS_BOTTLES.concat(BONUS_CRUSHES);
 
-const CORE_SPIRITS_TIER2 = CORE_SPIRITS.concat(["Baileys70Cl"]);
-const RTD_TIER2 = RTD_TIER3.concat(["RTDRCrush"]);
-
 // "Core Range" = Core Spirits + Guinness + RTD together, shown as one section —
 // these three used to be split into separate bands, but they're all part of the
 // same "must stock" core range per the reference diagrams (one red box around all three rows).
+// Shared by all three tiers — see file header comment.
 const CORE_RANGE_TIER3 = CORE_SPIRITS.concat(GUINNESS, RTD_TIER3);
-const CORE_RANGE_TIER2 = CORE_SPIRITS_TIER2.concat(GUINNESS, RTD_TIER2);
 
-// Tier 2: only Crush Lemon & Lime, Crush Mango & Peach, and Ciroc Blue fold into Core Range —
-// Ciroc Blue was the only Premium Spirits item, so that section is dropped for this tier.
-const BONUS_RANGE_TIER2 = BONUS_RANGE.filter(function (id) { return id !== "CrushLL" && id !== "CrushMP"; });
-const CORE_RANGE_TIER2_FULL = CORE_RANGE_TIER2.concat(["CrushLL", "CrushMP", "CirocBlue70cl"]);
+// Tier 2 Bonus Range: the flexible Bonus Range plus the items that used to be folded into Core.
+const BONUS_RANGE_TIER2_FULL = BONUS_RANGE.concat(["Baileys70Cl", "RTDRCrush", "CirocBlue70cl"]);
 
-// Tier 1: the entire Bonus Range folds into Core Range — no Bonus Range section remains.
-const CORE_RANGE_TIER1 = CORE_RANGE_TIER2.concat(BONUS_RANGE);
+// Tier 1 Bonus Range: same, minus Ciroc Blue which already lives in Premium Spirits below.
+const BONUS_RANGE_TIER1 = BONUS_RANGE.concat(["Baileys70Cl", "RTDRCrush"]);
 
 window.PP_LAYOUT = {
   tier1: {
     label: "Tier 1", reward: 240, targetCount: 30,
     sections: [
-      { label: "Core Range", items: CORE_RANGE_TIER1, isCore: true },
-      { label: "Premium Spirits", items: ["CirocBlue70cl", "BlackLabel70cl", "CirocRed70cl", "Tanqueray70cl", "Casamigo70cl"] }
+      { label: "Core Range", items: CORE_RANGE_TIER3, isCore: true },
+      { label: "Bonus Range", items: BONUS_RANGE_TIER1, promoteOnCheck: true },
+      { label: "Premium Spirits", items: ["CirocBlue70cl", "BlackLabel70cl", "CirocRed70cl", "Tanqueray70cl", "Casamigo70cl"], promoteOnCheck: true }
     ]
   },
   tier2: {
     label: "Tier 2", reward: 180, targetCount: 25,
     sections: [
-      { label: "Core Range", items: CORE_RANGE_TIER2_FULL, isCore: true },
-      { label: "Bonus Range", items: BONUS_RANGE_TIER2 }
+      { label: "Core Range", items: CORE_RANGE_TIER3, isCore: true },
+      { label: "Bonus Range", items: BONUS_RANGE_TIER2_FULL, promoteOnCheck: true }
     ]
   },
   tier3: {

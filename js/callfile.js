@@ -8,6 +8,9 @@
 //   - Platinum, 1 visit              -> amber
 //   - Platinum, 2+ visits            -> green
 
+// Session-only UI state (not persisted): which store's "Log a visit" date-picker modal is open.
+const callfileUi = { logKey: null };
+
 function escAttr(str) {
   const div = document.createElement("div");
   div.textContent = str == null ? "" : String(str);
@@ -67,26 +70,30 @@ function storeStatus(store) {
   return "green";
 }
 
+function formatDateShort(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+}
+
 function statusLabel(status) {
-  if (status === "red") return "Not visited this month";
-  if (status === "amber") return "1 visit logged";
+  if (status === "red") return "Not visited";
+  if (status === "amber") return "1 visit";
   return "On track";
 }
 
 function storeRowHtml(key, store) {
   const status = storeStatus(store);
+  const meta = (store.postcode ? escAttr(store.postcode) + " &middot; " : "") +
+    "Last " + formatDateShort(store.lastVisitDate) + " &middot; Next " + formatDateShort(store.nextVisitDate);
   return (
     '<div class="store-card status-' + status + '">' +
-      '<div class="store-info">' +
-        '<div class="store-name">' + escAttr(store.name) + "</div>" +
-        '<div class="store-postcode">' + escAttr(store.postcode) + "</div>" +
-      "</div>" +
-      '<div class="store-dates">' +
-        "<div><span>Last visit</span><strong>" + formatDate(store.lastVisitDate) + "</strong></div>" +
-        "<div><span>Next visit</span><strong>" + formatDate(store.nextVisitDate) + "</strong></div>" +
-      "</div>" +
-      '<div class="store-actions">' +
+      '<div class="store-row-top">' +
+        '<span class="store-name">' + escAttr(store.name) + "</span>" +
         '<span class="status-pill">' + statusLabel(status) + "</span>" +
+      "</div>" +
+      '<div class="store-row-bottom">' +
+        '<span class="store-meta">' + meta + "</span>" +
         '<button class="btn small" data-action="log" data-key="' + escAttr(key) + '">Log visit</button>' +
       "</div>" +
     "</div>"
@@ -117,6 +124,31 @@ function gradePanelHtml(entries) {
     "</div>" +
     '<div class="store-list">' + rows + "</div>"
   );
+}
+
+function openVisitModal(key) {
+  callfileUi.logKey = key;
+  render();
+  const dateInput = document.getElementById("visit-date-input");
+  dateInput.max = todayISO();
+  dateInput.value = todayISO();
+}
+
+function closeVisitModal() {
+  callfileUi.logKey = null;
+  render();
+}
+
+function renderVisitModal(state) {
+  const modal = document.getElementById("visit-modal");
+  const store = callfileUi.logKey ? state.callfile.stores[callfileUi.logKey] : null;
+  if (!store) {
+    modal.classList.add("hidden");
+    return;
+  }
+  document.getElementById("visit-modal-store").textContent =
+    store.name + (store.postcode ? " · " + store.postcode : "");
+  modal.classList.remove("hidden");
 }
 
 function render() {
@@ -156,6 +188,8 @@ function render() {
   const activeGrade = state.callfileSession.activeGrade;
   document.getElementById("callfile-sections").innerHTML = gradePanelHtml(byGrade[activeGrade]) ||
     '<p class="empty-note">' + (storeCount ? "No " + activeGrade + " stores match your search." : "Upload a call file (.xls) to get started.") + "</p>";
+
+  renderVisitModal(state);
 }
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -204,12 +238,31 @@ document.addEventListener("DOMContentLoaded", function () {
   document.getElementById("callfile-sections").addEventListener("click", function (e) {
     const btn = e.target.closest('button[data-action="log"]');
     if (!btn) return;
-    const key = btn.dataset.key;
+    openVisitModal(btn.dataset.key);
+  });
+
+  document.getElementById("visit-modal-close").addEventListener("click", closeVisitModal);
+  document.getElementById("visit-cancel-btn").addEventListener("click", closeVisitModal);
+
+  document.getElementById("visit-modal").addEventListener("click", function (e) {
+    if (e.target.id === "visit-modal") closeVisitModal();
+  });
+
+  document.getElementById("visit-confirm-btn").addEventListener("click", function () {
+    const key = callfileUi.logKey;
+    if (!key) return;
+    const dateVal = document.getElementById("visit-date-input").value;
+    if (!dateVal) { alert("Pick a date first."); return; }
     const state = Storage.loadState();
     const store = state.callfile.stores[key];
-    if (!store) return;
+    if (!store) { closeVisitModal(); return; }
     const cfg = window.CALLFILE_GRADE_CONFIG[store.grade] || { cadenceWeeks: 4 };
-    Storage.logVisit(key, todayISO(), cfg.cadenceWeeks);
+    Storage.logVisit(key, dateVal, cfg.cadenceWeeks);
+    callfileUi.logKey = null;
     render();
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && callfileUi.logKey) closeVisitModal();
   });
 });

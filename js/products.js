@@ -1,4 +1,4 @@
-// Product Presenter page logic: per-product tiles with wholesaler-aware case/bottle pricing
+// Product Presenter page logic: per-product tiles with case/bottle pricing
 // and a live SUM / VAT 20% / Total summary.
 
 function escAttr(str) {
@@ -22,7 +22,7 @@ function unitPriceFor(casePrice, caseSize, unit) {
 
 function lineTotal(state, id) {
   const product = window.CATALOG[id];
-  const wholesaler = state.productsSession.activeWholesaler;
+  const wholesaler = "booker";
   const casePrice = casePriceFor(state, id, wholesaler);
   const unit = state.productsSession.units[id] || "case";
   const qty = state.productsSession.quantities[id] || 0;
@@ -41,7 +41,7 @@ function computeSum(state) {
 
 function tileHtml(id, state) {
   const product = window.CATALOG[id];
-  const wholesaler = state.productsSession.activeWholesaler;
+  const wholesaler = "booker";
   const casePrice = casePriceFor(state, id, wholesaler);
   const unit = state.productsSession.units[id] || "case";
   const qty = state.productsSession.quantities[id] || 0;
@@ -78,10 +78,6 @@ function sectionHtml(section, state) {
 function render() {
   const state = Storage.loadState();
 
-  document.querySelectorAll(".wholesaler-tabs button").forEach(function (btn) {
-    btn.classList.toggle("active", btn.dataset.wholesaler === state.productsSession.activeWholesaler);
-  });
-
   document.getElementById("sections").innerHTML = window.PRODUCTS_LAYOUT.map(function (section) {
     return sectionHtml(section, state);
   }).join("");
@@ -97,13 +93,6 @@ function render() {
 document.addEventListener("DOMContentLoaded", function () {
   render();
 
-  document.getElementById("wholesaler-tabs").addEventListener("click", function (e) {
-    const btn = e.target.closest("button[data-wholesaler]");
-    if (!btn) return;
-    Storage.setActiveWholesaler(btn.dataset.wholesaler);
-    render();
-  });
-
   document.getElementById("sections").addEventListener("click", function (e) {
     const btn = e.target.closest("button");
     if (!btn) return;
@@ -112,10 +101,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (action === "price") {
       const state = Storage.loadState();
-      const wholesaler = state.productsSession.activeWholesaler;
+      const wholesaler = "booker";
       const product = window.CATALOG[id];
       const current = casePriceFor(state, id, wholesaler);
-      const input = prompt("Case price for " + product.name + " (" + wholesaler + "):", current > 0 ? current : "");
+      const input = prompt("Case price for " + product.name + ":", current > 0 ? current : "");
       if (input === null) return;
       const price = parseFloat(input);
       if (!isNaN(price) && price >= 0) {

@@ -1,7 +1,8 @@
 // Partnership Program page logic: product tiles grouped by tier/section, each with an explicit
-// tick box underneath (tapping the product image itself does nothing — tick box only, per spec).
+// tick box underneath. Tapping the tile anywhere outside that tick box opens a magnified product
+// modal (see openProductModal/renderModal) instead of toggling stock.
 
-var ppUi = { wasAbove90: false };
+var ppUi = { wasAbove90: false, zoomId: null };
 
 var HERO_IMAGES = {
   tier1: "images/PP/tier-1.png",
@@ -15,6 +16,17 @@ function escAttr(str) {
   return div.innerHTML.replace(/"/g, "&quot;");
 }
 
+function formatMoney(n) {
+  return "£" + (Math.round(n * 100) / 100).toFixed(2);
+}
+
+// Local copy of products.js's casePriceFor (that file isn't loaded on this page) — reads the
+// same state.prices saved via the Products page price-pill, always for Booker (see products.js).
+function casePriceFor(state, id) {
+  const p = state.prices[id];
+  return (p && p.booker) || 0;
+}
+
 function tierTabsHtml(state) {
   return Object.keys(window.PP_LAYOUT).map(function (tierKey) {
     const tier = window.PP_LAYOUT[tierKey];
@@ -23,10 +35,11 @@ function tierTabsHtml(state) {
   }).join("");
 }
 
-function tileHtml(id, checked) {
+function tileHtml(id, checked, isJumped) {
   const product = window.CATALOG[id];
   return (
-    '<div class="tile pp-tile">' +
+    '<div class="tile pp-tile' + (isJumped ? " bonus-jumped" : "") + '" data-id="' + id + '">' +
+      (isJumped ? '<span class="bonus-tag">Bonus</span>' : "") +
       '<img src="' + product.image + '" alt="' + escAttr(product.name) + '" />' +
       '<label class="tick-row' + (checked ? " checked" : "") + '" data-action="toggle" data-id="' + id + '">' +
         '<input type="checkbox" ' + (checked ? "checked" : "") + " />" +
@@ -34,6 +47,31 @@ function tileHtml(id, checked) {
       "</label>" +
     "</div>"
   );
+}
+
+// Products ticked in a non-core section visually "jump" up into the Core Range section (see
+// layout-pp.js header comment) without changing what the Core-100% gate itself requires — the
+// gate always reads from the section's own fixed `items` list (see coreStats), never this.
+function jumpedItems(tier, section, state) {
+  if (!section.isCore) return [];
+  const ids = [];
+  tier.sections.forEach(function (s) {
+    if (s === section || s.isCore || !s.promoteOnCheck) return;
+    s.items.forEach(function (id) { if (state.ppSession.checked[id]) ids.push(id); });
+  });
+  return ids;
+}
+
+// What a section should actually render: a `promoteOnCheck` non-core section hides items that
+// have jumped up to Core Range; the Core Range section shows its fixed items plus whatever
+// jumped up into it. Sections without `promoteOnCheck` (e.g. Tier 3's Bonus Range) render
+// unchanged, exactly as before.
+function sectionItemsToRender(tier, section, state) {
+  if (!section.isCore) {
+    if (!section.promoteOnCheck) return section.items;
+    return section.items.filter(function (id) { return !state.ppSession.checked[id]; });
+  }
+  return section.items.concat(jumpedItems(tier, section, state));
 }
 
 // Some sections (currently only Tier 3's Bonus Range) require at least `min` ticked within a
@@ -62,9 +100,13 @@ function gateTagHtml(section, state, stats) {
   "</span>";
 }
 
-function sectionHtml(section, state, stats) {
-  const tiles = section.items.map(function (id) {
-    return tileHtml(id, !!state.ppSession.checked[id]);
+function sectionHtml(tier, section, state, stats) {
+  const items = sectionItemsToRender(tier, section, state);
+  if (items.length === 0 && !section.isCore) return null;
+  const coreIds = section.isCore ? new Set(section.items) : null;
+  const tiles = items.map(function (id) {
+    const isJumped = !section.isCore ? false : !coreIds.has(id);
+    return tileHtml(id, !!state.ppSession.checked[id], isJumped);
   }).join("");
   return (
     '<section class="category">' +
@@ -124,6 +166,47 @@ function tierStats(state, tierKey) {
   };
 }
 
+function openProductModal(id) {
+  ppUi.zoomId = id;
+  render();
+}
+
+function closeProductModal() {
+  ppUi.zoomId = null;
+  render();
+}
+
+function renderModal(state) {
+  const modal = document.getElementById("product-modal");
+  if (!ppUi.zoomId) {
+    modal.classList.add("hidden");
+    return;
+  }
+  const id = ppUi.zoomId;
+  const product = window.CATALOG[id];
+  const casePrice = casePriceFor(state, id);
+  const checked = !!state.ppSession.checked[id];
+
+  document.getElementById("modal-img").src = product.image;
+  document.getElementById("modal-img").alt = product.name;
+  document.getElementById("modal-name").textContent = product.name;
+
+  const rows = ["Case size: " + product.caseSize + " per case"];
+  if (casePrice > 0) {
+    rows.push("Case price (Booker): " + formatMoney(casePrice));
+    rows.push("Per bottle: " + formatMoney(casePrice / product.caseSize));
+  } else {
+    rows.push("Price not set on Products page yet");
+  }
+  document.getElementById("modal-info").innerHTML = rows.map(function (r) { return "<div>" + escAttr(r) + "</div>"; }).join("");
+
+  document.getElementById("modal-tick-row").dataset.id = id;
+  document.getElementById("modal-tick-row").classList.toggle("checked", checked);
+  document.getElementById("modal-checkbox").checked = checked;
+
+  modal.classList.remove("hidden");
+}
+
 function render() {
   const state = Storage.loadState();
   const tierKey = state.ppSession.activeTier;
@@ -143,8 +226,8 @@ function render() {
     " required products stocked (" + gateSummaryText(tier) + ")";
 
   document.getElementById("tier-sections").innerHTML = tier.sections.map(function (section) {
-    return sectionHtml(section, state, stats);
-  }).join("");
+    return sectionHtml(tier, section, state, stats);
+  }).filter(function (html) { return html !== null; }).join("");
 
   document.getElementById("progress-frac").textContent = stats.checkedCount + " / " + stats.target;
   document.getElementById("progress-pct").textContent = stats.pct + "%";
@@ -157,6 +240,8 @@ function render() {
   }
   badge.classList.toggle("celebrate", isCelebrating);
   ppUi.wasAbove90 = isCelebrating;
+
+  renderModal(state);
 }
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -167,15 +252,48 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!btn) return;
     Storage.setActiveTier(btn.dataset.tier);
     ppUi.wasAbove90 = false;
+    ppUi.zoomId = null;
     render();
   });
 
   document.getElementById("tier-sections").addEventListener("click", function (e) {
     const row = e.target.closest(".tick-row");
-    if (!row) return;
-    e.preventDefault();
-    Storage.toggleChecked(row.dataset.id);
-    render();
+    if (row) {
+      e.preventDefault();
+      Storage.toggleChecked(row.dataset.id);
+      render();
+      return;
+    }
+    const tile = e.target.closest(".pp-tile");
+    if (tile) openProductModal(tile.dataset.id);
+  });
+
+  document.getElementById("modal-close-btn").addEventListener("click", closeProductModal);
+
+  document.getElementById("product-modal").addEventListener("click", function (e) {
+    if (e.target.id === "product-modal") {
+      closeProductModal();
+      return;
+    }
+    const row = e.target.closest("#modal-tick-row");
+    if (row) {
+      e.preventDefault();
+      Storage.toggleChecked(row.dataset.id);
+      render();
+    }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && ppUi.zoomId) closeProductModal();
+  });
+
+  document.getElementById("select-all-btn").addEventListener("click", function () {
+    const state = Storage.loadState();
+    const tier = window.PP_LAYOUT[state.ppSession.activeTier];
+    if (confirm("Tick every product in " + tier.label + "? This can't be undone item-by-item.")) {
+      Storage.selectAllTier(state.ppSession.activeTier);
+      render();
+    }
   });
 
   document.getElementById("target-edit").addEventListener("click", function () {
