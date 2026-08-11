@@ -8,6 +8,7 @@
   <meta name="theme-color" content="#0b0b0d" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" href="images/favicon.png" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
@@ -15,6 +16,7 @@
     <div class="callfile-toolbar">
       <label class="btn full" for="callfile-input">Upload Call File</label>
       <input type="file" id="callfile-input" accept=".xls,.xlsx,.csv" hidden />
+      <button type="button" class="btn secondary full" id="add-store-btn">Add store</button>
       <div class="callfile-meta" id="callfile-meta"></div>
     </div>
 
@@ -37,6 +39,24 @@
         <button class="btn secondary" id="visit-cancel-btn" type="button">Cancel</button>
         <button class="btn" id="visit-confirm-btn" type="button">Log visit</button>
       </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="store-modal">
+    <div class="modal-card modal-card-narrow">
+      <button class="modal-close" id="store-modal-close" aria-label="Close">&times;</button>
+      <h2 id="store-modal-title">Add store</h2>
+      <label class="field-label" for="store-name-input">Store name</label>
+      <input type="text" id="store-name-input" class="date-input" />
+      <label class="field-label" for="store-postcode-input">Postcode</label>
+      <input type="text" id="store-postcode-input" class="date-input" />
+      <label class="field-label" for="store-grade-input">Grade</label>
+      <select id="store-grade-input" class="date-input"></select>
+      <div class="modal-actions">
+        <button class="btn secondary" id="store-cancel-btn" type="button">Cancel</button>
+        <button class="btn" id="store-save-btn" type="button">Save</button>
+      </div>
+      <button class="btn danger full hidden" id="store-delete-btn" type="button">Delete store</button>
     </div>
   </div>
 

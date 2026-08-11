@@ -367,6 +367,11 @@ main {
   color: var(--ink);
   border: 1px solid var(--border);
 }
+.btn.danger {
+  background: rgba(198, 40, 40, 0.1);
+  color: var(--bad);
+  border: 1px solid rgba(198, 40, 40, 0.35);
+}
 .btn.full { width: 100%; }
 
 /* ---------- Sticky order summary (Products) ---------- */
@@ -570,6 +575,10 @@ main {
 /* ---------- Call File ---------- */
 .callfile-toolbar {
   padding: 16px 16px 0;
+}
+
+#add-store-btn {
+  margin-top: 8px;
 }
 
 .callfile-meta {
@@ -914,6 +923,9 @@ main {
   flex: 1;
 }
 
+#store-delete-btn { margin-top: 10px; }
+#store-delete-btn.hidden { display: none; }
+
 .empty-note {
   margin: 24px 16px;
   color: var(--ink-soft);
@@ -964,6 +976,27 @@ main {
 .auth-error.hidden { display: none; }
 
 .auth-card .date-input { margin-bottom: 14px; }
+
+.password-field {
+  position: relative;
+}
+
+.password-field .date-input {
+  padding-right: 46px;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  width: var(--tap);
+  height: var(--tap);
+  background: none;
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .auth-link {
   display: block;

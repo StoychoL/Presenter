@@ -67,6 +67,19 @@ function initAuthPage() {
       .catch(function (err) { showError(friendlyError(err)); });
   });
 
+  const EYE_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
+  const EYE_OFF_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"></path><circle cx="12" cy="12" r="3"></circle><line x1="3" y1="3" x2="21" y2="21"></line></svg>';
+
+  const passwordInput = document.getElementById("auth-password");
+  const passwordToggleBtn = document.getElementById("auth-password-toggle-btn");
+  passwordToggleBtn.innerHTML = EYE_ICON;
+  passwordToggleBtn.addEventListener("click", function () {
+    const showing = passwordInput.type === "text";
+    passwordInput.type = showing ? "password" : "text";
+    passwordToggleBtn.innerHTML = showing ? EYE_ICON : EYE_OFF_ICON;
+    passwordToggleBtn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+  });
+
   setMode("signin");
 }
 

@@ -4,9 +4,10 @@
 // storeStatus()/statusLabel()/todayISO() live in js/callfile-status.js (shared with js/map.js).
 
 // Session-only UI state (not persisted): which store's "Log a visit" date-picker modal is open,
-// and which store's saved-range review modal is open (rangeIndex picks which of the up to 2
-// saved snapshots is shown).
-const callfileUi = { logKey: null, rangeKey: null, rangeIndex: 0 };
+// which store's saved-range review modal is open (rangeIndex picks which of the up to 2 saved
+// snapshots is shown), and the add/edit-store modal — null when closed, "__new__" when adding a
+// new store, or an existing store's key when editing it.
+const callfileUi = { logKey: null, rangeKey: null, rangeIndex: 0, editKey: null };
 
 function escAttr(str) {
   const div = document.createElement("div");
@@ -78,6 +79,7 @@ function storeRowHtml(key, store) {
         '<span class="store-meta">' + meta + "</span>" +
         '<div class="store-row-actions">' +
           rangeBtn +
+          '<button class="btn small secondary" data-action="edit" data-key="' + escAttr(key) + '">Edit</button>' +
           '<button class="btn small" data-action="log" data-key="' + escAttr(key) + '">Log visit</button>' +
         "</div>" +
       "</div>" +
@@ -230,6 +232,49 @@ function renderVisitModal(state) {
   modal.classList.remove("hidden");
 }
 
+function openAddStoreModal() {
+  callfileUi.editKey = "__new__";
+  render();
+}
+
+function openEditStoreModal(key) {
+  callfileUi.editKey = key;
+  render();
+}
+
+function closeStoreModal() {
+  callfileUi.editKey = null;
+  render();
+}
+
+function renderStoreModal(state) {
+  const modal = document.getElementById("store-modal");
+  if (!callfileUi.editKey) {
+    modal.classList.add("hidden");
+    return;
+  }
+  const isNew = callfileUi.editKey === "__new__";
+  const store = isNew ? null : state.callfile.stores[callfileUi.editKey];
+  if (!isNew && !store) {
+    // Store was deleted/renamed elsewhere while this modal was open — close gracefully.
+    modal.classList.add("hidden");
+    return;
+  }
+
+  document.getElementById("store-modal-title").textContent = isNew ? "Add store" : "Edit store";
+  document.getElementById("store-name-input").value = store ? store.name : "";
+  document.getElementById("store-postcode-input").value = store ? store.postcode : "";
+
+  const gradeSelect = document.getElementById("store-grade-input");
+  gradeSelect.innerHTML = window.CALLFILE_GRADES.map(function (g) {
+    return '<option value="' + g + '"' + (store && store.grade === g ? " selected" : "") + ">" + g + "</option>";
+  }).join("");
+
+  document.getElementById("store-delete-btn").classList.toggle("hidden", isNew);
+
+  modal.classList.remove("hidden");
+}
+
 function render() {
   const state = Storage.loadState();
   const cf = state.callfile;
@@ -270,6 +315,7 @@ function render() {
 
   renderVisitModal(state);
   renderRangeModal(state);
+  renderStoreModal(state);
 }
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -319,8 +365,12 @@ document.addEventListener("DOMContentLoaded", function () {
     const logBtn = e.target.closest('button[data-action="log"]');
     if (logBtn) { openVisitModal(logBtn.dataset.key); return; }
     const rangeBtn = e.target.closest('button[data-action="range"]');
-    if (rangeBtn) openRangeModal(rangeBtn.dataset.key);
+    if (rangeBtn) { openRangeModal(rangeBtn.dataset.key); return; }
+    const editBtn = e.target.closest('button[data-action="edit"]');
+    if (editBtn) openEditStoreModal(editBtn.dataset.key);
   });
+
+  document.getElementById("add-store-btn").addEventListener("click", openAddStoreModal);
 
   document.getElementById("range-modal-close").addEventListener("click", closeRangeModal);
 
@@ -356,8 +406,45 @@ document.addEventListener("DOMContentLoaded", function () {
     render();
   });
 
+  document.getElementById("store-modal-close").addEventListener("click", closeStoreModal);
+  document.getElementById("store-cancel-btn").addEventListener("click", closeStoreModal);
+
+  document.getElementById("store-modal").addEventListener("click", function (e) {
+    if (e.target.id === "store-modal") closeStoreModal();
+  });
+
+  document.getElementById("store-save-btn").addEventListener("click", function () {
+    const key = callfileUi.editKey;
+    if (!key) return;
+    const name = document.getElementById("store-name-input").value;
+    const postcode = document.getElementById("store-postcode-input").value;
+    const grade = document.getElementById("store-grade-input").value;
+
+    const result = key === "__new__"
+      ? Storage.addStore(name, grade, postcode)
+      : Storage.updateStore(key, name, grade, postcode);
+
+    if (result.error) { alert(result.error); return; }
+
+    callfileUi.editKey = null;
+    render();
+  });
+
+  document.getElementById("store-delete-btn").addEventListener("click", function () {
+    const key = callfileUi.editKey;
+    if (!key || key === "__new__") return;
+    const state = Storage.loadState();
+    const store = state.callfile.stores[key];
+    const name = store ? store.name : "this store";
+    if (!confirm("Delete " + name + "? This removes its visit history and can't be undone.")) return;
+    Storage.deleteStore(key);
+    callfileUi.editKey = null;
+    render();
+  });
+
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && callfileUi.logKey) closeVisitModal();
     if (e.key === "Escape" && callfileUi.rangeKey) closeRangeModal();
+    if (e.key === "Escape" && callfileUi.editKey) closeStoreModal();
   });
 });

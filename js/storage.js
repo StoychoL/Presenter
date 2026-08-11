@@ -232,6 +232,72 @@ function importCallfile(fileName, rows) {
   return { state: state, duplicateCount: duplicateCount };
 }
 
+// Adding/editing a store via the Add/Edit modal (as opposed to importCallfile's bulk
+// re-upload path). Both guard against colliding with a different existing store's key —
+// silently merging into another store's key would destroy that store's visit history.
+
+function addStore(name, grade, postcode) {
+  const trimmedName = (name || "").trim();
+  if (!trimmedName) return { error: "Enter a store name." };
+  if (window.CALLFILE_GRADES.indexOf(grade) === -1) return { error: "Pick a grade." };
+
+  const state = loadState();
+  const key = storeKey(trimmedName, postcode);
+  if (!key.replace("|", "")) return { error: "Enter a store name." };
+  if (state.callfile.stores[key]) return { error: "A store with this name and postcode already exists." };
+
+  state.callfile.stores[key] = {
+    name: trimmedName,
+    grade: grade,
+    postcode: (postcode || "").trim(),
+    lastVisitDate: null,
+    nextVisitDate: null,
+    visits: [],
+    ppHistory: []
+  };
+  saveState(state);
+  return { state: state };
+}
+
+function updateStore(oldKey, name, grade, postcode) {
+  const trimmedName = (name || "").trim();
+  if (!trimmedName) return { error: "Enter a store name." };
+  if (window.CALLFILE_GRADES.indexOf(grade) === -1) return { error: "Pick a grade." };
+
+  const state = loadState();
+  const store = state.callfile.stores[oldKey];
+  if (!store) return { error: "That store no longer exists." };
+
+  const newKey = storeKey(trimmedName, postcode);
+  if (!newKey.replace("|", "")) return { error: "Enter a store name." };
+  if (newKey !== oldKey && state.callfile.stores[newKey]) {
+    return { error: "A store with this name and postcode already exists." };
+  }
+
+  const updated = {
+    name: trimmedName,
+    grade: grade,
+    postcode: (postcode || "").trim(),
+    lastVisitDate: store.lastVisitDate,
+    nextVisitDate: store.nextVisitDate,
+    visits: store.visits,
+    ppHistory: store.ppHistory
+  };
+
+  if (newKey !== oldKey) delete state.callfile.stores[oldKey];
+  state.callfile.stores[newKey] = updated;
+
+  saveState(state);
+  return { state: state, newKey: newKey };
+}
+
+function deleteStore(key) {
+  const state = loadState();
+  delete state.callfile.stores[key];
+  saveState(state);
+  return state;
+}
+
 // Snapshots the Partnership Program checklist state onto a store so a rep can compare visits.
 // Keeps only the 2 most recent, newest first — there's no need for unlimited history here.
 function savePPSnapshot(key, snapshot) {
@@ -282,6 +348,9 @@ window.Storage = {
   resetPPSession: resetPPSession,
   storeKey: storeKey,
   importCallfile: importCallfile,
+  addStore: addStore,
+  updateStore: updateStore,
+  deleteStore: deleteStore,
   setCallfileGrade: setCallfileGrade,
   logVisit: logVisit,
   savePPSnapshot: savePPSnapshot,
