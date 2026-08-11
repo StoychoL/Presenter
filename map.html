@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Map — Diageo</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0b0b0d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="js/vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <main class="map-page">
+    <div class="map-toolbar">
+      <div class="map-meta" id="map-meta"></div>
+      <div class="map-legend">
+        <span><span class="dot red"></span> Not visited</span>
+        <span><span class="dot amber"></span> Partial</span>
+        <span><span class="dot green"></span> On track</span>
+      </div>
+    </div>
+
+    <div class="map-notice hidden" id="map-notice"></div>
+
+    <div id="map-container"></div>
+
+    <p class="empty-note hidden" id="map-empty"></p>
+  </main>
+
+  <script type="module" src="js/firebase-config.js"></script>
+  <script src="js/vendor/leaflet/leaflet.js"></script>
+  <script src="js/layout-callfile.js"></script>
+  <script src="js/callfile-status.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/cloud-sync.js"></script>
+  <script src="js/map.js"></script>
+  <script>renderNav("map");</script>
+</body>
+</html>

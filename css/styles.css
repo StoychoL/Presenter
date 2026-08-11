@@ -979,3 +979,77 @@ main {
 }
 
 .auth-link.hidden { display: none; }
+
+/* ---------- Map ---------- */
+main.map-page {
+  padding: 0;
+  max-width: none;
+}
+
+.map-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 16px 0;
+  flex-wrap: wrap;
+}
+
+.map-meta {
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.map-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.map-legend .dot {
+  margin-right: 4px;
+}
+
+.map-notice {
+  margin: 12px 16px 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(150, 97, 21, 0.1);
+  border: 1px solid rgba(150, 97, 21, 0.3);
+  color: var(--warn);
+  font-size: 14px;
+}
+
+.map-notice.hidden { display: none; }
+
+.empty-note.hidden { display: none; }
+
+#map-container {
+  width: 100%;
+  height: calc(100vh - 132px);
+  margin-top: 12px;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 12px;
+}
+
+.map-popup {
+  font-family: inherit;
+}
+
+.map-popup-name {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.map-popup-row {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+.status-pill.status-red-pill { background: rgba(198, 40, 40, 0.12); color: var(--bad); }
+.status-pill.status-amber-pill { background: rgba(217, 140, 31, 0.14); color: var(--warn); }
+.status-pill.status-green-pill { background: rgba(31, 138, 76, 0.12); color: var(--good); }

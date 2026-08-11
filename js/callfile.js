@@ -1,12 +1,7 @@
 // Call File page logic: upload an .xls/.xlsx/.csv export, keep only OUTLETNAME / OUTLETGRADE /
 // POSTCODE per row, and track visit compliance per store for the current calendar month.
 //
-// Status colour is derived at render time from today's date + the store's visit history, not
-// stored — so a new month automatically starts every store back at red with no reset step:
-//   - no visit yet this month        -> red
-//   - Silver/Gold, 1+ visits         -> green
-//   - Platinum, 1 visit              -> amber
-//   - Platinum, 2+ visits            -> green
+// storeStatus()/statusLabel()/todayISO() live in js/callfile-status.js (shared with js/map.js).
 
 // Session-only UI state (not persisted): which store's "Log a visit" date-picker modal is open,
 // and which store's saved-range review modal is open (rangeIndex picks which of the up to 2
@@ -17,10 +12,6 @@ function escAttr(str) {
   const div = document.createElement("div");
   div.textContent = str == null ? "" : String(str);
   return div.innerHTML.replace(/"/g, "&quot;");
-}
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
 }
 
 function formatDate(iso) {
@@ -63,25 +54,10 @@ function parseWorkbook(workbook) {
   return { rows: rows, skipped: skipped };
 }
 
-function storeStatus(store) {
-  const cfg = window.CALLFILE_GRADE_CONFIG[store.grade] || { visitsRequired: 1 };
-  const monthKey = todayISO().slice(0, 7);
-  const visitsThisMonth = store.visits.filter(function (d) { return d.slice(0, 7) === monthKey; }).length;
-  if (visitsThisMonth <= 0) return "red";
-  if (visitsThisMonth < cfg.visitsRequired) return "amber";
-  return "green";
-}
-
 function formatDateShort(iso) {
   if (!iso) return "—";
   const d = new Date(iso + "T00:00:00");
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
-}
-
-function statusLabel(status) {
-  if (status === "red") return "Not visited";
-  if (status === "amber") return "1 visit";
-  return "On track";
 }
 
 function storeRowHtml(key, store) {

@@ -5,7 +5,8 @@ function renderNav(activePage) {
     { href: "index.html", label: "Dashboard", key: "home" },
     { href: "products.html", label: "Build Order", key: "products" },
     { href: "partnership.html", label: "Partnership", key: "partnership" },
-    { href: "callfile.html", label: "Call File", key: "callfile" }
+    { href: "callfile.html", label: "Call File", key: "callfile" },
+    { href: "map.html", label: "Map", key: "map" }
   ];
 
   const linksHtml = links.map(function (l) {
