@@ -186,18 +186,46 @@ function gradeTabsHtml(state, byGrade) {
   }).join("");
 }
 
-function gradePanelHtml(entries) {
+// Platinum needs a Partial container (a rep can log 1 of the 2 required visits and land
+// mid-way); Gold/Silver never can, since storeStatus() only returns "amber" when visits-so-far
+// is below cfg.visitsRequired but still >0 — and those grades require just 1 visit to go green.
+function statusGroupsForGrade(grade) {
+  const groups = [
+    { status: "red", label: "Not visited" },
+    { status: "amber", label: "Partial" },
+    { status: "green", label: "On Track" }
+  ];
+  return grade === "Platinum" ? groups : groups.filter(function (g) { return g.status !== "amber"; });
+}
+
+function statusGroupHtml(label, status, entries) {
   if (!entries.length) return "";
-  const counts = { red: 0, amber: 0, green: 0 };
-  entries.forEach(function (e) { counts[storeStatus(e.store)]++; });
   const rows = entries.map(function (e) { return storeRowHtml(e.key, e.store); }).join("");
   return (
+    '<div class="status-group">' +
+      '<div class="status-group-heading">' +
+        '<span><span class="dot ' + status + '"></span>' + label + "</span>" +
+        "<span>" + entries.length + "</span>" +
+      "</div>" +
+      '<div class="store-list">' + rows + "</div>" +
+    "</div>"
+  );
+}
+
+function gradePanelHtml(grade, entries) {
+  if (!entries.length) return "";
+  const byStatus = { red: [], amber: [], green: [] };
+  entries.forEach(function (e) { byStatus[storeStatus(e.store)].push(e); });
+  const groups = statusGroupsForGrade(grade).map(function (g) {
+    return statusGroupHtml(g.label, g.status, byStatus[g.status]);
+  }).join("");
+  return (
     '<div class="grade-summary">' +
-      '<span class="dot red"></span>' + counts.red + " not visited &nbsp; " +
-      '<span class="dot amber"></span>' + counts.amber + " partial &nbsp; " +
-      '<span class="dot green"></span>' + counts.green + " on track" +
+      '<span class="dot red"></span>' + byStatus.red.length + " not visited &nbsp; " +
+      '<span class="dot amber"></span>' + byStatus.amber.length + " partial &nbsp; " +
+      '<span class="dot green"></span>' + byStatus.green.length + " on track" +
     "</div>" +
-    '<div class="store-list">' + rows + "</div>"
+    groups
   );
 }
 
@@ -261,7 +289,7 @@ function render() {
   document.getElementById("grade-tabs").innerHTML = gradeTabsHtml(state, byGrade);
 
   const activeGrade = state.callfileSession.activeGrade;
-  document.getElementById("callfile-sections").innerHTML = gradePanelHtml(byGrade[activeGrade]) ||
+  document.getElementById("callfile-sections").innerHTML = gradePanelHtml(activeGrade, byGrade[activeGrade]) ||
     '<p class="empty-note">' + (storeCount ? "No " + activeGrade + " stores match your search." : "Upload a call file (.xls) to get started.") + "</p>";
 
   renderVisitModal(state);

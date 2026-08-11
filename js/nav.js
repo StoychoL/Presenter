@@ -2,8 +2,8 @@
 
 function renderNav(activePage) {
   const links = [
-    { href: "index.html", label: "Home", key: "home" },
-    { href: "products.html", label: "Product Presenter", key: "products" },
+    { href: "index.html", label: "Dashboard", key: "home" },
+    { href: "products.html", label: "Build Order", key: "products" },
     { href: "partnership.html", label: "Partnership", key: "partnership" },
     { href: "callfile.html", label: "Call File", key: "callfile" }
   ];
@@ -18,15 +18,47 @@ function renderNav(activePage) {
   header.innerHTML =
     '<a class="brand" href="index.html">DIAGEO</a>' +
     '<nav class="app-nav">' + linksHtml + "</nav>" +
-    '<span class="rep-email" id="rep-email"></span>' +
-    '<button type="button" class="rep-logout" id="rep-logout-btn">Log out</button>';
+    '<div class="rep-menu-wrap">' +
+      '<button type="button" class="rep-menu-toggle" id="rep-menu-toggle" aria-label="Account menu" aria-haspopup="true" aria-expanded="false">' +
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"></path></svg>' +
+      "</button>" +
+      '<div class="rep-menu hidden" id="rep-menu">' +
+        '<div class="rep-email" id="rep-email"></div>' +
+        '<button type="button" class="rep-logout" id="rep-logout-btn">Log out</button>' +
+      "</div>" +
+    "</div>";
 
   document.body.insertBefore(header, document.body.firstChild);
+
+  const menuToggle = document.getElementById("rep-menu-toggle");
+  const menu = document.getElementById("rep-menu");
+
+  function closeMenu() {
+    menu.classList.add("hidden");
+    menuToggle.setAttribute("aria-expanded", "false");
+  }
+  function toggleMenu() {
+    const willOpen = menu.classList.contains("hidden");
+    menu.classList.toggle("hidden", !willOpen);
+    menuToggle.setAttribute("aria-expanded", String(willOpen));
+  }
+
+  menuToggle.addEventListener("click", function (e) {
+    e.stopPropagation();
+    toggleMenu();
+  });
+  document.addEventListener("click", function (e) {
+    if (!menu.classList.contains("hidden") && !header.contains(e.target)) closeMenu();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !menu.classList.contains("hidden")) closeMenu();
+  });
 
   // Filled in once Firebase resolves the signed-in rep (see js/cloud-sync.js) — this header
   // renders before that's known, so it starts empty rather than waiting on auth.
   document.getElementById("rep-logout-btn").addEventListener("click", function () {
     if (window.FirebaseAuth) window.FirebaseAuth.signOut(window.FirebaseAuth.auth);
+    closeMenu();
   });
   function showRepEmail() {
     const user = window.FirebaseAuth.auth.currentUser;

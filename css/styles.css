@@ -1,18 +1,22 @@
 :root {
   --bg: #f4f2f5;
-  --surface: #ffffff;
+  --surface: #fdfcfe;
   --ink: #17151a;
   --ink-soft: #5a5560;
   --accent: #b5136b;
   --accent-dark: #7d0d4a;
   --gold: #c9a24b;
-  --good: #1f8a4c;
-  --warn: #d98c1f;
+  /* --good/--warn darkened from their original #1f8a4c/#d98c1f to clear WCAG AA (4.5:1) at the
+     small badge-text sizes they're actually used at, checked against their real tinted pill
+     backgrounds, not just white. */
+  --good: #1c7b44;
+  --warn: #966115;
   --bad: #c62828;
   --border: #e3dfe6;
   --bar-bg: #0b0b0d;
   --radius: 16px;
   --tap: 48px;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 * { box-sizing: border-box; }
@@ -42,6 +46,16 @@ button:active { transform: scale(0.97); }
 input {
   font-family: inherit;
   font-size: inherit;
+}
+
+/* Single shared focus ring for every interactive element — keyboard/assistive-tech users
+   otherwise get each browser's inconsistent default outline, which also clashes with the
+   accent color. :focus-visible so mouse/touch clicks don't show a ring, only keyboard focus. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* ---------- App shell / nav ---------- */
@@ -88,30 +102,66 @@ input {
   color: #fff;
 }
 
-.rep-email {
+.rep-menu-wrap {
+  position: relative;
+}
+
+.rep-menu-toggle {
+  width: var(--tap);
+  height: var(--tap);
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--border);
   color: var(--ink-soft);
-  font-size: 13px;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rep-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 30;
+}
+
+.rep-menu.hidden {
   display: none;
 }
 
-.rep-email:not(:empty) {
-  display: inline;
-}
-
-.rep-logout {
-  background: none;
+.rep-menu .rep-email {
   color: var(--ink-soft);
   font-size: 13px;
-  font-weight: 600;
-  text-decoration: underline;
-  white-space: nowrap;
-  min-height: var(--tap);
-  padding: 0 4px;
+  padding: 8px 8px 10px;
+  border-bottom: 1px solid var(--border);
 }
 
-@media (max-width: 640px) {
-  .rep-email { display: none !important; }
+.rep-menu .rep-email:empty {
+  display: none;
+}
+
+.rep-menu .rep-logout {
+  background: none;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  min-height: var(--tap);
+  padding: 0 8px;
+  border-radius: 8px;
+}
+
+.rep-menu .rep-logout:hover {
+  background: var(--bg);
 }
 
 main {
@@ -167,7 +217,8 @@ main {
 
 .category h3 {
   margin: 0 0 8px;
-  font-size: 18px;
+  font-size: 23px;
+  font-weight: 800;
   color: var(--accent-dark);
 }
 
@@ -408,7 +459,12 @@ main {
 .progress-badge.celebrate {
   background: linear-gradient(135deg, var(--gold), #f4dd8b);
   border-color: var(--gold);
-  animation: pulse 0.6s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .progress-badge.celebrate {
+    animation: pulse 0.6s var(--ease-out-expo);
+  }
 }
 
 .progress-badge.celebrate .pct,
@@ -464,9 +520,10 @@ main {
   height: auto;
 }
 
+/* Background tint only, no border/shadow — the .pp-tile products inside are already cards
+   (bordered, own background); wrapping them in a second bordered card would nest cards. */
 .tier-panel .category {
   background: var(--tier-band-bg);
-  border: 1px solid var(--tier-band-border);
   border-radius: var(--radius);
   padding: 12px 12px 14px;
   margin: 14px 16px;
@@ -586,12 +643,25 @@ main {
 .dot.amber { background: var(--warn); }
 .dot.green { background: var(--good); }
 
+.status-group {
+  margin: 0 16px 14px;
+}
+
+.status-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin: 0 0 6px;
+}
+
 .store-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin: 0 16px 20px;
-  max-height: 56vh;
+  max-height: 32vh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 4px 4px 4px 0;
@@ -603,7 +673,6 @@ main {
 .store-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-left: 4px solid var(--border);
   border-radius: 12px;
   margin: 0 6px;
   padding: 8px 10px;
@@ -614,9 +683,11 @@ main {
 .store-list > .store-card:first-child { margin-top: 6px; }
 .store-list > .store-card:last-child { margin-bottom: 6px; }
 
-.store-card.status-red { border-left-color: var(--bad); }
-.store-card.status-amber { border-left-color: var(--warn); }
-.store-card.status-green { border-left-color: var(--good); }
+/* Status reads via a full border + subtle background tint, not a side-stripe accent —
+   the same rgba-tint pattern used by .tick-row.checked and .status-pill. */
+.store-card.status-red { background: rgba(198, 40, 40, 0.05); border-color: rgba(198, 40, 40, 0.35); }
+.store-card.status-amber { background: rgba(150, 97, 21, 0.06); border-color: rgba(150, 97, 21, 0.35); }
+.store-card.status-green { background: rgba(28, 123, 68, 0.05); border-color: rgba(28, 123, 68, 0.35); }
 
 .store-row-top,
 .store-row-bottom {
@@ -673,8 +744,27 @@ main {
 }
 
 /* ---------- Saved range review modal (Call File) ---------- */
-.modal-card-wide {
-  max-width: 560px;
+/* Overrides the shared .modal-backdrop's 20px side padding just for this modal, since on phones
+   that padding plus .modal-card's own padding left barely any room for the 4-column tile grid. */
+#range-modal {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+/* Higher specificity than the later .modal-card rule below (max-width: 360px, padding: 22px 18px),
+   which would otherwise win the cascade (same 0-1-0 specificity, later source order) and silently
+   clobber every one of these overrides — that's why this modal never actually widened before. */
+.modal-card.modal-card-wide {
+  max-width: 720px;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+/* Fixed 4-per-row, unlike the base .tile-grid's auto-fill min-150px columns elsewhere —
+   this grid is a read-only review (image + tick-row only), so tiles can shrink freely. */
+#range-snapshot-detail .tile-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .range-snapshot-tabs {
