@@ -40,10 +40,23 @@
     </div>
   </div>
 
+  <div class="modal-backdrop hidden" id="range-modal">
+    <div class="modal-card modal-card-narrow modal-card-wide">
+      <button class="modal-close" id="range-modal-close" aria-label="Close">&times;</button>
+      <h2 id="range-modal-store"></h2>
+      <div class="range-snapshot-tabs" id="range-snapshot-tabs"></div>
+      <div id="range-snapshot-detail"></div>
+    </div>
+  </div>
+
+  <script type="module" src="js/firebase-config.js"></script>
   <script src="js/vendor/xlsx.full.min.js"></script>
+  <script src="js/catalog.js"></script>
+  <script src="js/layout-pp.js"></script>
   <script src="js/layout-callfile.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/storage.js"></script>
+  <script src="js/cloud-sync.js"></script>
   <script src="js/callfile.js"></script>
   <script>renderNav("callfile");</script>
 </body>

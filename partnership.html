@@ -28,6 +28,7 @@
   </div>
 
   <div class="reset-bar">
+    <button class="btn full" id="save-callfile-btn">Save to Call File</button>
     <button class="btn secondary full" id="reset-btn">Reset / New store</button>
   </div>
 
@@ -44,10 +45,21 @@
     </div>
   </div>
 
+  <div class="modal-backdrop hidden" id="store-picker-modal">
+    <div class="modal-card modal-card-narrow">
+      <button class="modal-close" id="store-picker-close" aria-label="Close">&times;</button>
+      <h2>Save range to store</h2>
+      <input type="search" id="store-picker-search" class="date-input" placeholder="Search by store name or postcode" />
+      <div class="store-list" id="store-picker-list"></div>
+    </div>
+  </div>
+
+  <script type="module" src="js/firebase-config.js"></script>
   <script src="js/catalog.js"></script>
   <script src="js/layout-pp.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/storage.js"></script>
+  <script src="js/cloud-sync.js"></script>
   <script src="js/partnership.js"></script>
   <script>renderNav("partnership");</script>
 </body>

@@ -8,8 +8,10 @@
 //   - Platinum, 1 visit              -> amber
 //   - Platinum, 2+ visits            -> green
 
-// Session-only UI state (not persisted): which store's "Log a visit" date-picker modal is open.
-const callfileUi = { logKey: null };
+// Session-only UI state (not persisted): which store's "Log a visit" date-picker modal is open,
+// and which store's saved-range review modal is open (rangeIndex picks which of the up to 2
+// saved snapshots is shown).
+const callfileUi = { logKey: null, rangeKey: null, rangeIndex: 0 };
 
 function escAttr(str) {
   const div = document.createElement("div");
@@ -86,6 +88,10 @@ function storeRowHtml(key, store) {
   const status = storeStatus(store);
   const meta = (store.postcode ? escAttr(store.postcode) + " &middot; " : "") +
     "Last " + formatDateShort(store.lastVisitDate) + " &middot; Next " + formatDateShort(store.nextVisitDate);
+  const history = store.ppHistory || [];
+  const rangeBtn = history.length > 0
+    ? '<button class="btn small secondary" data-action="range" data-key="' + escAttr(key) + '">Range</button>'
+    : "";
   return (
     '<div class="store-card status-' + status + '">' +
       '<div class="store-row-top">' +
@@ -94,10 +100,79 @@ function storeRowHtml(key, store) {
       "</div>" +
       '<div class="store-row-bottom">' +
         '<span class="store-meta">' + meta + "</span>" +
-        '<button class="btn small" data-action="log" data-key="' + escAttr(key) + '">Log visit</button>' +
+        '<div class="store-row-actions">' +
+          rangeBtn +
+          '<button class="btn small" data-action="log" data-key="' + escAttr(key) + '">Log visit</button>' +
+        "</div>" +
       "</div>" +
     "</div>"
   );
+}
+
+// Read-only equivalent of partnership.js's tileHtml — no click handler, no zoom/jump behavior,
+// just a fixed record of what was ticked at the time the snapshot was saved.
+function snapshotTileHtml(id, checked) {
+  const product = window.CATALOG[id];
+  if (!product) return "";
+  return (
+    '<div class="tile pp-tile">' +
+      '<img src="' + product.image + '" alt="' + escAttr(product.name) + '" />' +
+      '<div class="tick-row' + (checked ? " checked" : "") + '"><span>' + (checked ? "✓ In stock" : "Not stocked") + "</span></div>" +
+    "</div>"
+  );
+}
+
+// Renders a snapshot's sections in the same shape as layout-pp.js's tier definition, but always
+// the fixed `items` list per section — no "jump to Core" promotion, since that's a live-editing
+// display feature (see partnership.js) that a frozen historical snapshot doesn't need.
+function snapshotSectionsHtml(tierKey, checkedIds) {
+  const tier = window.PP_LAYOUT[tierKey];
+  if (!tier) return "";
+  const checkedSet = new Set(checkedIds);
+  return tier.sections.map(function (section) {
+    const tiles = section.items.map(function (id) { return snapshotTileHtml(id, checkedSet.has(id)); }).join("");
+    return '<section class="category"><h3>' + escAttr(section.label) + '</h3><div class="tile-grid">' + tiles + "</div></section>";
+  }).join("");
+}
+
+function openRangeModal(key) {
+  callfileUi.rangeKey = key;
+  callfileUi.rangeIndex = 0;
+  render();
+}
+
+function closeRangeModal() {
+  callfileUi.rangeKey = null;
+  render();
+}
+
+function renderRangeModal(state) {
+  const modal = document.getElementById("range-modal");
+  const store = callfileUi.rangeKey ? state.callfile.stores[callfileUi.rangeKey] : null;
+  const history = store ? (store.ppHistory || []) : [];
+  if (!store || history.length === 0) {
+    modal.classList.add("hidden");
+    return;
+  }
+  const index = Math.min(callfileUi.rangeIndex, history.length - 1);
+  const snapshot = history[index];
+  const tier = window.PP_LAYOUT[snapshot.tierKey];
+
+  document.getElementById("range-modal-store").textContent = store.name;
+
+  document.getElementById("range-snapshot-tabs").innerHTML = history.map(function (snap, i) {
+    return '<button type="button" class="' + (i === index ? "active" : "") + '" data-action="range-tab" data-index="' + i + '">' +
+      formatDateShort(snap.date) + "</button>";
+  }).join("");
+
+  const unlockedTag = snapshot.unlocked ? ' <span class="core-status complete">Unlocked</span>' : "";
+  document.getElementById("range-snapshot-detail").innerHTML =
+    '<p class="range-snapshot-summary">' + escAttr(tier.label) + " &middot; " + formatDate(snapshot.date) + " &middot; " +
+      snapshot.checkedCount + "/" + snapshot.target + " (" + snapshot.pct + "%)" + unlockedTag +
+    "</p>" +
+    snapshotSectionsHtml(snapshot.tierKey, snapshot.checkedIds);
+
+  modal.classList.remove("hidden");
 }
 
 function gradeTabsHtml(state, byGrade) {
@@ -190,6 +265,7 @@ function render() {
     '<p class="empty-note">' + (storeCount ? "No " + activeGrade + " stores match your search." : "Upload a call file (.xls) to get started.") + "</p>";
 
   renderVisitModal(state);
+  renderRangeModal(state);
 }
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -236,9 +312,23 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   document.getElementById("callfile-sections").addEventListener("click", function (e) {
-    const btn = e.target.closest('button[data-action="log"]');
+    const logBtn = e.target.closest('button[data-action="log"]');
+    if (logBtn) { openVisitModal(logBtn.dataset.key); return; }
+    const rangeBtn = e.target.closest('button[data-action="range"]');
+    if (rangeBtn) openRangeModal(rangeBtn.dataset.key);
+  });
+
+  document.getElementById("range-modal-close").addEventListener("click", closeRangeModal);
+
+  document.getElementById("range-modal").addEventListener("click", function (e) {
+    if (e.target.id === "range-modal") closeRangeModal();
+  });
+
+  document.getElementById("range-snapshot-tabs").addEventListener("click", function (e) {
+    const btn = e.target.closest('button[data-action="range-tab"]');
     if (!btn) return;
-    openVisitModal(btn.dataset.key);
+    callfileUi.rangeIndex = parseInt(btn.dataset.index, 10) || 0;
+    render();
   });
 
   document.getElementById("visit-modal-close").addEventListener("click", closeVisitModal);
@@ -264,5 +354,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && callfileUi.logKey) closeVisitModal();
+    if (e.key === "Escape" && callfileUi.rangeKey) closeRangeModal();
   });
 });

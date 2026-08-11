@@ -57,6 +57,10 @@ function loadState() {
     }
     if (parsed.targetCounts) {
       Object.keys(base.targetCounts).forEach(function (tierKey) {
+        // One-time migration: Tier 3's default target changed from 20 to 23 (Core Range 17 +
+        // Bonus Range 6 = 23 total products). A saved value of exactly 20 predates that fix, so
+        // treat it as unmigrated and let the new default through rather than carrying it forward.
+        if (tierKey === "tier3" && parsed.targetCounts[tierKey] === 20) return;
         if (typeof parsed.targetCounts[tierKey] === "number") base.targetCounts[tierKey] = parsed.targetCounts[tierKey];
       });
     }
@@ -72,6 +76,38 @@ function loadState() {
 
 function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  // Mirrors the persisted slice up to the signed-in rep's Firestore doc in the background — see
+  // js/cloud-sync.js. Every mutation already funnels through this one function, so this is the
+  // only place cloud sync needs to hook in; localStorage stays the synchronous source of truth
+  // every render() reads from, cloud sync is purely a background mirror on top.
+  if (window.CloudSync) window.CloudSync.pushState(state);
+}
+
+function hasSavedData() {
+  return !!localStorage.getItem(STORAGE_KEY);
+}
+
+// The subset of state that's mirrored to Firestore — prices/targetCounts/callfile, exactly the
+// fields already documented as "persisted across resets" (session state never leaves the device).
+function cloudSlice(state) {
+  return { prices: state.prices, targetCounts: state.targetCounts, callfile: state.callfile };
+}
+
+function defaultPersistedSlice() {
+  return cloudSlice(defaultState());
+}
+
+// Overwrites just the cloud-synced slice from a Firestore snapshot, writing straight to
+// localStorage (bypassing saveState/CloudSync.pushState) since this data came FROM the cloud —
+// echoing it back up would be redundant. Used by cloud-sync.js on initial hydration and on every
+// live update from another device.
+function hydrateFromCloud(slice) {
+  const state = loadState();
+  if (slice.prices) state.prices = slice.prices;
+  if (slice.targetCounts) state.targetCounts = slice.targetCounts;
+  if (slice.callfile) state.callfile = slice.callfile;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  return state;
 }
 
 // ---- Products mutations ----
@@ -182,7 +218,8 @@ function importCallfile(fileName, rows) {
       postcode: row.postcode,
       lastVisitDate: prior ? prior.lastVisitDate : null,
       nextVisitDate: prior ? prior.nextVisitDate : null,
-      visits: prior ? prior.visits.slice() : []
+      visits: prior ? prior.visits.slice() : [],
+      ppHistory: prior && prior.ppHistory ? prior.ppHistory.slice() : []
     };
   });
 
@@ -193,6 +230,19 @@ function importCallfile(fileName, rows) {
   };
   saveState(state);
   return { state: state, duplicateCount: duplicateCount };
+}
+
+// Snapshots the Partnership Program checklist state onto a store so a rep can compare visits.
+// Keeps only the 2 most recent, newest first — there's no need for unlimited history here.
+function savePPSnapshot(key, snapshot) {
+  const state = loadState();
+  const store = state.callfile.stores[key];
+  if (!store) return state;
+  const history = (store.ppHistory || []).slice();
+  history.unshift(snapshot);
+  store.ppHistory = history.slice(0, 2);
+  saveState(state);
+  return state;
 }
 
 function setCallfileGrade(grade) {
@@ -233,5 +283,9 @@ window.Storage = {
   storeKey: storeKey,
   importCallfile: importCallfile,
   setCallfileGrade: setCallfileGrade,
-  logVisit: logVisit
+  logVisit: logVisit,
+  savePPSnapshot: savePPSnapshot,
+  hasSavedData: hasSavedData,
+  defaultPersistedSlice: defaultPersistedSlice,
+  hydrateFromCloud: hydrateFromCloud
 };

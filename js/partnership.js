@@ -2,7 +2,7 @@
 // tick box underneath. Tapping the tile anywhere outside that tick box opens a magnified product
 // modal (see openProductModal/renderModal) instead of toggling stock.
 
-var ppUi = { wasAbove90: false, zoomId: null };
+var ppUi = { wasAbove90: false, zoomId: null, storePickerOpen: false };
 
 var HERO_IMAGES = {
   tier1: "images/PP/tier-1.png",
@@ -14,6 +14,10 @@ function escAttr(str) {
   const div = document.createElement("div");
   div.textContent = str == null ? "" : String(str);
   return div.innerHTML.replace(/"/g, "&quot;");
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function formatMoney(n) {
@@ -159,10 +163,18 @@ function tierStats(state, tierKey) {
   });
   const pct = gatesComplete ? realPct : Math.min(realPct, 89);
 
+  // Most tiers unlock their reward at 90%+ of the required count; a tier can instead set
+  // `unlockCount` (currently only Tier 3, at 20 of 23) to unlock at that exact count instead —
+  // either way, the section gates above (Core Range 100%, Bonus Range quotas) still apply on top.
+  const unlockCount = tier.unlockCount || null;
+  const unlocked = unlockCount != null
+    ? (gatesComplete && checkedCount >= unlockCount)
+    : (gatesComplete && realPct >= 90);
+
   return {
     checkedCount: checkedCount, target: target, pct: pct, realPct: realPct,
     coreComplete: core.coreComplete, coreCheckedCount: core.coreCheckedCount, coreTotal: core.coreTotal,
-    gatesComplete: gatesComplete
+    gatesComplete: gatesComplete, unlockCount: unlockCount, unlocked: unlocked
   };
 }
 
@@ -207,6 +219,61 @@ function renderModal(state) {
   modal.classList.remove("hidden");
 }
 
+// All product ids checked within a tier (across every section, core + bonus/premium) — this is
+// what gets frozen into a Call File snapshot, since ppSession.checked is a flat map shared across
+// tiers (core range ids are the same across tier1/2/3).
+function tierCheckedIds(tier, state) {
+  const ids = [];
+  tier.sections.forEach(function (section) {
+    section.items.forEach(function (id) { if (state.ppSession.checked[id]) ids.push(id); });
+  });
+  return ids;
+}
+
+function openStorePicker() {
+  ppUi.storePickerOpen = true;
+  render();
+}
+
+function closeStorePicker() {
+  ppUi.storePickerOpen = false;
+  render();
+}
+
+function storePickRowHtml(key, store) {
+  return (
+    '<button type="button" class="store-card" data-action="pick" data-key="' + escAttr(key) + '">' +
+      '<div class="store-row-top">' +
+        '<span class="store-name">' + escAttr(store.name) + '</span>' +
+        '<span class="status-pill">' + escAttr(store.grade) + '</span>' +
+      "</div>" +
+      '<div class="store-row-bottom"><span class="store-meta">' + escAttr(store.postcode || "") + "</span></div>" +
+    "</button>"
+  );
+}
+
+function renderStorePicker(state) {
+  const modal = document.getElementById("store-picker-modal");
+  if (!ppUi.storePickerOpen) {
+    modal.classList.add("hidden");
+    return;
+  }
+  const query = (document.getElementById("store-picker-search").value || "").trim().toLowerCase();
+  const stores = state.callfile.stores;
+  const rows = Object.keys(stores)
+    .filter(function (key) {
+      if (!query) return true;
+      const store = stores[key];
+      return (store.name + " " + store.postcode).toLowerCase().indexOf(query) !== -1;
+    })
+    .sort(function (a, b) { return stores[a].name.localeCompare(stores[b].name); })
+    .map(function (key) { return storePickRowHtml(key, stores[key]); })
+    .join("");
+  document.getElementById("store-picker-list").innerHTML = rows ||
+    '<p class="empty-note">No stores match your search.</p>';
+  modal.classList.remove("hidden");
+}
+
 function render() {
   const state = Storage.loadState();
   const tierKey = state.ppSession.activeTier;
@@ -221,8 +288,11 @@ function render() {
 
   const stats = tierStats(state, tierKey);
 
+  const rewardCondition = stats.unlockCount != null
+    ? stats.unlockCount + " of " + state.targetCounts[tierKey]
+    : "90%+ of " + state.targetCounts[tierKey];
   document.getElementById("tier-reward").textContent =
-    escAttr(tier.label) + " — £" + tier.reward + " reward at 90%+ of " + state.targetCounts[tierKey] +
+    escAttr(tier.label) + " — £" + tier.reward + " reward at " + rewardCondition +
     " required products stocked (" + gateSummaryText(tier) + ")";
 
   document.getElementById("tier-sections").innerHTML = tier.sections.map(function (section) {
@@ -233,7 +303,7 @@ function render() {
   document.getElementById("progress-pct").textContent = stats.pct + "%";
 
   const badge = document.getElementById("progress-badge");
-  const isCelebrating = stats.pct >= 90;
+  const isCelebrating = stats.unlocked;
   if (isCelebrating && !ppUi.wasAbove90) {
     badge.classList.remove("celebrate");
     void badge.offsetWidth; // restart animation
@@ -242,6 +312,7 @@ function render() {
   ppUi.wasAbove90 = isCelebrating;
 
   renderModal(state);
+  renderStorePicker(state);
 }
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -285,6 +356,47 @@ document.addEventListener("DOMContentLoaded", function () {
 
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && ppUi.zoomId) closeProductModal();
+    if (e.key === "Escape" && ppUi.storePickerOpen) closeStorePicker();
+  });
+
+  document.getElementById("save-callfile-btn").addEventListener("click", function () {
+    const state = Storage.loadState();
+    if (Object.keys(state.callfile.stores).length === 0) {
+      alert("Upload a call file first (Call File tab) before saving a range to a store.");
+      return;
+    }
+    openStorePicker();
+  });
+
+  document.getElementById("store-picker-close").addEventListener("click", closeStorePicker);
+
+  document.getElementById("store-picker-modal").addEventListener("click", function (e) {
+    if (e.target.id === "store-picker-modal") closeStorePicker();
+  });
+
+  document.getElementById("store-picker-search").addEventListener("input", render);
+
+  document.getElementById("store-picker-list").addEventListener("click", function (e) {
+    const btn = e.target.closest('button[data-action="pick"]');
+    if (!btn) return;
+    const key = btn.dataset.key;
+    const state = Storage.loadState();
+    const tierKey = state.ppSession.activeTier;
+    const tier = window.PP_LAYOUT[tierKey];
+    const stats = tierStats(state, tierKey);
+    const store = state.callfile.stores[key];
+    Storage.savePPSnapshot(key, {
+      date: todayISO(),
+      tierKey: tierKey,
+      checkedIds: tierCheckedIds(tier, state),
+      checkedCount: stats.checkedCount,
+      target: stats.target,
+      pct: stats.pct,
+      unlocked: stats.unlocked
+    });
+    closeStorePicker();
+    alert("Saved " + tier.label + " range for " + store.name + " — " + stats.checkedCount + "/" + stats.target + " (" + stats.pct + "%)");
+    render();
   });
 
   document.getElementById("select-all-btn").addEventListener("click", function () {

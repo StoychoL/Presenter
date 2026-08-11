@@ -88,6 +88,32 @@ input {
   color: #fff;
 }
 
+.rep-email {
+  color: var(--ink-soft);
+  font-size: 13px;
+  white-space: nowrap;
+  display: none;
+}
+
+.rep-email:not(:empty) {
+  display: inline;
+}
+
+.rep-logout {
+  background: none;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  white-space: nowrap;
+  min-height: var(--tap);
+  padding: 0 4px;
+}
+
+@media (max-width: 640px) {
+  .rep-email { display: none !important; }
+}
+
 main {
   padding: 0 0 220px;
   max-width: 900px;
@@ -403,6 +429,9 @@ main {
   background: var(--bar-bg);
   padding: 12px 16px;
   padding-bottom: max(12px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .tier-reward {
@@ -637,6 +666,53 @@ main {
   font-size: 13px;
 }
 
+.store-row-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+/* ---------- Saved range review modal (Call File) ---------- */
+.modal-card-wide {
+  max-width: 560px;
+}
+
+.range-snapshot-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.range-snapshot-tabs button {
+  flex: 1;
+  min-height: 40px;
+  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.range-snapshot-tabs button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.range-snapshot-summary {
+  color: var(--ink-soft);
+  font-size: 14px;
+  margin: 0 0 6px;
+}
+
+#range-snapshot-detail .category {
+  margin: 14px 0;
+}
+
+#range-snapshot-detail .tick-row {
+  cursor: default;
+}
+
 /* ---------- Product zoom modal (Partnership Program) ---------- */
 .modal-backdrop {
   position: fixed;
@@ -753,3 +829,63 @@ main {
   color: var(--ink-soft);
   text-align: center;
 }
+
+/* ---------- Login / signup ---------- */
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 26px 22px 22px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.auth-brand {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--accent-dark);
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+
+.auth-card h1 {
+  margin: 0 0 18px;
+  font-size: 22px;
+}
+
+.auth-error {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(198, 40, 40, 0.1);
+  color: var(--bad);
+  font-size: 14px;
+}
+
+.auth-error.hidden { display: none; }
+
+.auth-card .date-input { margin-bottom: 14px; }
+
+.auth-link {
+  display: block;
+  width: 100%;
+  text-align: center;
+  background: none;
+  color: var(--accent-dark);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  margin-top: 14px;
+  min-height: var(--tap);
+}
+
+.auth-link.hidden { display: none; }

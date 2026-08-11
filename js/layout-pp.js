@@ -57,7 +57,9 @@ window.PP_LAYOUT = {
     ]
   },
   tier3: {
-    label: "Tier 3", reward: 120, targetCount: 20,
+    // Tier 3 unlocks its reward at an absolute count (20 of 23), not the 90%+ rule Tier 1/2 use —
+    // see partnership.js's tierStats/unlockCount handling.
+    label: "Tier 3", reward: 120, targetCount: 23, unlockCount: 20,
     sections: [
       { label: "Core Range", items: CORE_RANGE_TIER3, isCore: true },
       {
