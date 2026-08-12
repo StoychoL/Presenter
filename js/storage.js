@@ -333,6 +333,29 @@ function logVisit(key, dateStr, cadenceWeeks) {
   return state;
 }
 
+function resetVisits(key) {
+  const state = loadState();
+  const store = state.callfile.stores[key];
+  if (!store) return state;
+  store.visits = [];
+  store.lastVisitDate = null;
+  store.nextVisitDate = null;
+  saveState(state);
+  return state;
+}
+
+function resetAllVisits() {
+  const state = loadState();
+  Object.keys(state.callfile.stores).forEach(function (key) {
+    const store = state.callfile.stores[key];
+    store.visits = [];
+    store.lastVisitDate = null;
+    store.nextVisitDate = null;
+  });
+  saveState(state);
+  return state;
+}
+
 window.Storage = {
   loadState: loadState,
   saveState: saveState,
@@ -353,6 +376,8 @@ window.Storage = {
   deleteStore: deleteStore,
   setCallfileGrade: setCallfileGrade,
   logVisit: logVisit,
+  resetVisits: resetVisits,
+  resetAllVisits: resetAllVisits,
   savePPSnapshot: savePPSnapshot,
   hasSavedData: hasSavedData,
   defaultPersistedSlice: defaultPersistedSlice,

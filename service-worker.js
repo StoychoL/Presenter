@@ -1,7 +1,7 @@
 // Cache-first service worker so the presenter keeps working with patchy in-store wifi.
 // Bump CACHE_NAME whenever app files change to force clients to pick up the new version.
 
-const CACHE_NAME = "diageo-presenter-v23";
+const CACHE_NAME = "diageo-presenter-v25";
 
 const PRECACHE_URLS = [
   "./",
@@ -10,6 +10,7 @@ const PRECACHE_URLS = [
   "./partnership.html",
   "./callfile.html",
   "./map.html",
+  "./deck.html",
   "./login.html",
   "./css/styles.css",
   "./js/storage.js",
@@ -34,6 +35,7 @@ const PRECACHE_URLS = [
   "./icons/icon-512.png",
   "./images/favicon.png",
   "./images/Hero.png",
+  "./images/Sales%20Presenter%20Deck%20V19%20with%20No%20PMP%20%20(1).pdf",
   "./images/PP/tier-1.png",
   "./images/PP/tier-2.png",
   "./images/PP/tier-3.png",

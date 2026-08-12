@@ -190,10 +190,21 @@ function statusGroupHtml(label, status, entries) {
   );
 }
 
+// A store just moved into "amber"/"green" by logging a visit should surface at the top of its
+// new group rather than wherever the grade-wide nextVisitDate sort happened to leave it.
+function byRecentVisit(a, b) {
+  const al = a.store.lastVisitDate || "";
+  const bl = b.store.lastVisitDate || "";
+  if (al !== bl) return al > bl ? -1 : 1;
+  return a.store.name.localeCompare(b.store.name);
+}
+
 function gradePanelHtml(grade, entries) {
   if (!entries.length) return "";
   const byStatus = { red: [], amber: [], green: [] };
   entries.forEach(function (e) { byStatus[storeStatus(e.store)].push(e); });
+  byStatus.amber.sort(byRecentVisit);
+  byStatus.green.sort(byRecentVisit);
   const groups = statusGroupsForGrade(grade).map(function (g) {
     return statusGroupHtml(g.label, g.status, byStatus[g.status]);
   }).join("");
@@ -270,6 +281,7 @@ function renderStoreModal(state) {
     return '<option value="' + g + '"' + (store && store.grade === g ? " selected" : "") + ">" + g + "</option>";
   }).join("");
 
+  document.getElementById("store-reset-visits-btn").classList.toggle("hidden", isNew);
   document.getElementById("store-delete-btn").classList.toggle("hidden", isNew);
 
   modal.classList.remove("hidden");
@@ -372,6 +384,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
   document.getElementById("add-store-btn").addEventListener("click", openAddStoreModal);
 
+  document.getElementById("reset-all-visits-btn").addEventListener("click", function () {
+    const count = Object.keys(Storage.loadState().callfile.stores).length;
+    if (!count) return;
+    if (!confirm("Reset visit history for all " + count + " stores? This can't be undone.")) return;
+    Storage.resetAllVisits();
+    render();
+  });
+
   document.getElementById("range-modal-close").addEventListener("click", closeRangeModal);
 
   document.getElementById("range-modal").addEventListener("click", function (e) {
@@ -426,6 +446,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (result.error) { alert(result.error); return; }
 
+    callfileUi.editKey = null;
+    render();
+  });
+
+  document.getElementById("store-reset-visits-btn").addEventListener("click", function () {
+    const key = callfileUi.editKey;
+    if (!key || key === "__new__") return;
+    const state = Storage.loadState();
+    const store = state.callfile.stores[key];
+    const name = store ? store.name : "this store";
+    if (!confirm("Reset visit history for " + name + "? This can't be undone.")) return;
+    Storage.resetVisits(key);
     callfileUi.editKey = null;
     render();
   });
