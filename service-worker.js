@@ -1,7 +1,10 @@
-// Cache-first service worker so the presenter keeps working with patchy in-store wifi.
+// Hybrid service worker: network-first (with a short timeout fallback) for the app's own
+// HTML/CSS/JS, so a normal reload always picks up the latest push instead of needing a manual
+// cache clear; cache-first for images/vendored libraries/manifest/icons, which is what keeps the
+// presenter usable on patchy in-store wifi.
 // Bump CACHE_NAME whenever app files change to force clients to pick up the new version.
 
-const CACHE_NAME = "diageo-presenter-v26";
+const CACHE_NAME = "diageo-presenter-v27";
 
 const PRECACHE_URLS = [
   "./",
@@ -107,6 +110,34 @@ self.addEventListener("activate", function (event) {
 });
 
 self.addEventListener("fetch", function (event) {
+  const url = new URL(event.request.url);
+  const isVendorAsset = url.pathname.indexOf("/js/vendor/") !== -1;
+  const isAppShell = !isVendorAsset &&
+    (event.request.mode === "navigate" || /\.(html|css|js)$/.test(url.pathname));
+
+  if (isAppShell) {
+    // Network-first, but racing a short timeout against the fetch — a fully dead connection
+    // fails fast and falls back to cache almost instantly, but a slow/flaky in-store connection
+    // could otherwise hang the page waiting on the network instead of falling back promptly.
+    // This keeps the "still usable on patchy wifi" guarantee this service worker exists for,
+    // while still picking up a fresh deploy whenever the connection is actually good enough.
+    event.respondWith(
+      Promise.race([
+        fetch(event.request),
+        new Promise(function (_, reject) { setTimeout(function () { reject(new Error("timeout")); }, 2500); })
+      ]).then(function (response) {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(function (cache) { cache.put(event.request, clone); });
+        return response;
+      }).catch(function () {
+        return caches.match(event.request);
+      })
+    );
+    return;
+  }
+
+  // Cache-first for images/vendored libraries/manifest/icons — large and rarely-changing, and
+  // this is what keeps the app usable on patchy in-store wifi.
   event.respondWith(
     caches.match(event.request).then(function (cached) {
       if (cached) return cached;
