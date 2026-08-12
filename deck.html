@@ -14,11 +14,11 @@
 </head>
 <body>
   <main class="deck-page">
-    <iframe id="deck-frame" src="images/Sales%20Presenter%20Deck%20V19%20with%20No%20PMP%20%20(1).pdf" title="Sales Presenter Deck"></iframe>
-    <p class="deck-fallback">
-      Deck not showing? <a href="images/Sales%20Presenter%20Deck%20V19%20with%20No%20PMP%20%20(1).pdf" target="_blank" rel="noopener">Open in new tab</a>.
-    </p>
+    <div id="deck-pages"></div>
+    <p class="deck-status" id="deck-status">Loading deck…</p>
   </main>
+  <script src="js/vendor/pdfjs/pdf.min.js"></script>
+  <script src="js/deck.js"></script>
   <script src="js/nav.js"></script>
   <script>renderNav("deck");</script>
 </body>

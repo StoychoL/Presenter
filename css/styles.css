@@ -1025,19 +1025,50 @@ main.deck-page {
   max-width: none;
 }
 
-#deck-frame {
-  display: block;
-  width: 100%;
-  height: calc(100vh - 132px);
-  border: 0;
+#deck-pages {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 12px 16px 40px;
 }
 
-.deck-fallback {
-  margin: 10px 16px;
+.deck-page-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin: 0 auto 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.deck-page-slot.rendered {
+  border: 0;
+  background: transparent;
+}
+
+.deck-page-num {
   color: var(--ink-soft);
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.deck-page-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+
+.deck-status {
+  margin: 16px;
+  color: var(--ink-soft);
+  font-size: 14px;
   text-align: center;
 }
+
+.deck-status.hidden { display: none; }
 
 /* ---------- Map ---------- */
 main.map-page {
