@@ -7,11 +7,10 @@
 //
 // "Bonus Range" = flexible either/or slots (Captain Morgan 35/20cl, Gordon's 35/20cl, a Crush
 // flavour, plus Baileys/RTD Raspberry Crush/Ciroc Blue for Tier 1 & 2) shown as individually
-// tickable options. Tier 1 & 2's non-core sections carry `promoteOnCheck: true`, meaning ticking
+// tickable options. Every tier's non-core sections carry `promoteOnCheck: true`, meaning ticking
 // one of those items visually promotes it into the Core Range section on the page (see
 // partnership.js's jumpedItems/sectionItemsToRender) — purely a display move, the Core-100% gate
-// always means exactly these 17 fixed products. Tier 3's Bonus Range deliberately does NOT set
-// this flag — its items stay put when ticked, unchanged from before.
+// always means exactly these 17 fixed products.
 //
 // Tier 3 keeps its own Bonus Range section but it's no longer purely optional: a section can carry
 // a `gate: { groups: [...] }` config (see partnership.js's sectionGateStats) requiring at least
@@ -63,7 +62,7 @@ window.PP_LAYOUT = {
     sections: [
       { label: "Core Range", items: CORE_RANGE_TIER3, isCore: true },
       {
-        label: "Bonus Range", items: BONUS_RANGE,
+        label: "Bonus Range", items: BONUS_RANGE, promoteOnCheck: true,
         gate: { groups: [
           { label: "bottles", items: BONUS_BOTTLES, min: 2 },
           { label: "crush", items: BONUS_CRUSHES, min: 1 }
