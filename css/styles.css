@@ -236,6 +236,17 @@ main {
 .core-status.complete { background: rgba(31, 138, 76, 0.12); color: var(--good); }
 .core-status.partial { background: rgba(217, 140, 31, 0.14); color: var(--warn); }
 
+/* Priced products jump here from their category (js/products.js sectionItemsToRender) —
+   always the first section on the page so a rep doesn't have to hunt through categories. */
+#instock-section .tile-grid {
+  max-height: clamp(480px, 62vh, 760px);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 10px;
+}
+
 /* ---------- Product tile grid ---------- */
 .tile-grid {
   display: grid;
@@ -657,6 +668,7 @@ main {
 .dot.red { background: var(--bad); }
 .dot.amber { background: var(--warn); }
 .dot.green { background: var(--good); }
+.dot.platinum-ring { background: var(--ink-soft); border: 2px solid #1a1a1a; width: 8px; height: 8px; }
 
 .status-group {
   margin: 0 16px 14px;

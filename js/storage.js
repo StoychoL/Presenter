@@ -61,6 +61,10 @@ function loadState() {
         // Bonus Range 6 = 23 total products). A saved value of exactly 20 predates that fix, so
         // treat it as unmigrated and let the new default through rather than carrying it forward.
         if (tierKey === "tier3" && parsed.targetCounts[tierKey] === 20) return;
+        // One-time migration: Tier 2's default target changed from 25 to 26 (Core Range shrank to
+        // 13 shared products, Bonus Range grew to 13 with both Captain Morgan/Gordon's sizes). A
+        // saved value of exactly 25 predates that fix — let the new default through instead.
+        if (tierKey === "tier2" && parsed.targetCounts[tierKey] === 25) return;
         if (typeof parsed.targetCounts[tierKey] === "number") base.targetCounts[tierKey] = parsed.targetCounts[tierKey];
       });
     }

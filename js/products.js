@@ -65,10 +65,31 @@ function tileHtml(id, state) {
   );
 }
 
+function jumpedItems(topSection, state) {
+  const ids = [];
+  window.PRODUCTS_LAYOUT.forEach(function (s) {
+    if (s === topSection || !s.promoteOnPrice) return;
+    s.items.forEach(function (id) {
+      if (casePriceFor(state, id, "booker") > 0) ids.push(id);
+    });
+  });
+  return ids;
+}
+
+function sectionItemsToRender(section, state) {
+  if (section.isTop) return jumpedItems(section, state);
+  if (section.promoteOnPrice) {
+    return section.items.filter(function (id) { return casePriceFor(state, id, "booker") <= 0; });
+  }
+  return section.items;
+}
+
 function sectionHtml(section, state) {
-  const tiles = section.items.map(function (id) { return tileHtml(id, state); }).join("");
+  const items = sectionItemsToRender(section, state);
+  if (items.length === 0) return null;
+  const tiles = items.map(function (id) { return tileHtml(id, state); }).join("");
   return (
-    '<section class="category">' +
+    '<section class="category"' + (section.isTop ? ' id="instock-section"' : "") + '>' +
       "<h3>" + escAttr(section.label) + "</h3>" +
       '<div class="tile-grid">' + tiles + "</div>" +
     "</section>"
@@ -80,7 +101,7 @@ function render() {
 
   document.getElementById("sections").innerHTML = window.PRODUCTS_LAYOUT.map(function (section) {
     return sectionHtml(section, state);
-  }).join("");
+  }).filter(function (html) { return html !== null; }).join("");
 
   const sum = computeSum(state);
   const vat = sum * 0.2;

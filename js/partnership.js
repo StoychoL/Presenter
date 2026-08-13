@@ -98,6 +98,7 @@ function gateTagHtml(section, state, stats) {
   }
   const gate = sectionGateStats(state, section);
   if (!gate) return "";
+  if (section.gate.hideTag) return "";
   const parts = gate.groups.map(function (g) { return g.label + " " + g.checked + "/" + g.total; }).join(" · ");
   return ' <span class="core-status ' + (gate.complete ? "complete" : "partial") + '">' +
     (gate.complete ? "✓ " + parts : parts) +

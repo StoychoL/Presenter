@@ -2,6 +2,12 @@
 
 window.PRODUCTS_LAYOUT = [
   {
+    key: "instock",
+    label: "In Stock",
+    items: [],
+    isTop: true
+  },
+  {
     key: "70cl",
     label: "70cl Range",
     items: [
@@ -9,7 +15,8 @@ window.PRODUCTS_LAYOUT = [
       "GordonsOriginal70cl", "GordonsPink70cl", "Baileys70Cl", "Tanqueray70cl",
       "Casamigo70cl", "CirocBlue70cl", "CirocRed70cl", "SmirnoffIce70cl",
       "MangoAndPF70cl", "MiamiPeach70cl", "RaspberryCrush70cl"
-    ]
+    ],
+    promoteOnPrice: true
   },
   {
     key: "35cl",
@@ -18,12 +25,14 @@ window.PRODUCTS_LAYOUT = [
       "Smirnoff35cl", "BlackLabel35cl", "RedLabel35cl", "CaptianMorgan35cl",
       "GordonsOriginal35cl", "GordonsPink35cl",
       "MangoAndPF35cl", "MiamiPeach35cl", "RaspberryCrush35cl"
-    ]
+    ],
+    promoteOnPrice: true
   },
   {
     key: "20cl",
     label: "20cl Range",
-    items: ["Smirnoff20cl", "CaptianMorgan20cl", "Gordons20cl"]
+    items: ["Smirnoff20cl", "CaptianMorgan20cl", "Gordons20cl"],
+    promoteOnPrice: true
   },
   {
     key: "rtd",
@@ -34,6 +43,7 @@ window.PRODUCTS_LAYOUT = [
       "RTDGO", "RTDGP", "RTDGD",
       "CrushLL", "CrushMP", "CrushBP",
       "SmirnoffIce4pack", "GuinnessDraugh", "Guinness0"
-    ]
+    ],
+    promoteOnPrice: true
   }
 ];

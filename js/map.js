@@ -11,8 +11,13 @@ const mapState = {
                          // live onSnapshot updates) don't yank the rep's current pan/zoom
   inFlightPostcodes: new Set(), // normalized postcodes currently being geocoded, to dedupe
                                  // concurrent render() calls firing overlapping requests
-  statusColors: null     // resolved once from CSS custom properties (see resolveStatusColors)
+  statusColors: null,    // resolved once from CSS custom properties (see resolveStatusColors)
+  userLocationLayer: null, // L.layerGroup for the "you are here" dot + accuracy halo
+  watchId: null           // navigator.geolocation.watchPosition id, guards against double-starting
 };
+
+const USER_LOCATION_COLOR = "#1a73e8"; // distinct from the red/amber/green status palette
+const PLATINUM_RING_COLOR = "#1a1a1a";
 
 const UK_CENTER = [54.5, -3.5];
 const UK_DEFAULT_ZOOM = 6;
@@ -118,7 +123,42 @@ function ensureMap() {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(map);
   mapState.markerLayer = L.layerGroup().addTo(map);
+  mapState.userLocationLayer = L.layerGroup().addTo(map);
   mapState.leaflet = map;
+  initLiveLocation();
+}
+
+function onLocationUpdate(pos) {
+  const lat = pos.coords.latitude;
+  const lng = pos.coords.longitude;
+  mapState.userLocationLayer.clearLayers();
+  L.circle([lat, lng], {
+    radius: pos.coords.accuracy || 0,
+    weight: 1,
+    color: USER_LOCATION_COLOR,
+    fillColor: USER_LOCATION_COLOR,
+    fillOpacity: 0.12
+  }).addTo(mapState.userLocationLayer);
+  L.circleMarker([lat, lng], {
+    radius: 7,
+    weight: 2,
+    color: "#fff",
+    fillColor: USER_LOCATION_COLOR,
+    fillOpacity: 1
+  }).bindPopup("You are here").addTo(mapState.userLocationLayer);
+}
+
+function onLocationError(err) {
+  console.error("Geolocation failed:", err);
+}
+
+function initLiveLocation() {
+  if (mapState.watchId != null || !navigator.geolocation) return;
+  mapState.watchId = navigator.geolocation.watchPosition(onLocationUpdate, onLocationError, {
+    enableHighAccuracy: true,
+    maximumAge: 10000,
+    timeout: 20000
+  });
 }
 
 function popupHtml(store, status) {
@@ -145,10 +185,11 @@ function plotMarkers(entries, cache) {
     if (!geo || geo.found === false || geo.lat == null) { unplaced++; return; }
 
     const status = storeStatus(e.store);
+    const isPlatinum = e.store.grade === "Platinum";
     const marker = L.circleMarker([geo.lat, geo.lng], {
       radius: 9,
-      weight: 2,
-      color: "#fff",
+      weight: isPlatinum ? 3 : 2,
+      color: isPlatinum ? PLATINUM_RING_COLOR : "#fff",
       fillColor: mapState.statusColors[status],
       fillOpacity: 0.95
     }).bindPopup(popupHtml(e.store, status));
