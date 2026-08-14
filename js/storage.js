@@ -107,15 +107,45 @@ function defaultPersistedSlice() {
   return cloudSlice(defaultState());
 }
 
+// A rep can navigate to another page before a just-made change (e.g. logVisit) has actually
+// finished pushing to Firestore — the next page's own hydration read can then race that in-flight
+// write and come back stale. pickNewerStore/mergeCallfile compare each store's updatedAt so a
+// stale read can't roll back a newer local change; whichever side was genuinely written more
+// recently wins, which also means a legitimate resetVisits from another device still propagates
+// correctly (unlike a naive "keep whichever visits array is longer" comparison would allow).
+function pickNewerStore(localStore, cloudStore) {
+  if (!localStore) return cloudStore;
+  if (!cloudStore) return localStore;
+  if (localStore.updatedAt && cloudStore.updatedAt) {
+    return localStore.updatedAt >= cloudStore.updatedAt ? localStore : cloudStore;
+  }
+  // Records saved before updatedAt existed: fall back to the old blind-overwrite-safe heuristic.
+  return localStore.visits.length >= cloudStore.visits.length ? localStore : cloudStore;
+}
+
+function mergeCallfile(localCallfile, cloudCallfile) {
+  const mergedStores = {};
+  Object.keys(cloudCallfile.stores || {}).forEach(function (key) {
+    mergedStores[key] = pickNewerStore(localCallfile && localCallfile.stores[key], cloudCallfile.stores[key]);
+  });
+  if (localCallfile && localCallfile.stores) {
+    Object.keys(localCallfile.stores).forEach(function (key) {
+      if (!mergedStores[key]) mergedStores[key] = localCallfile.stores[key]; // e.g. added locally, not yet pushed
+    });
+  }
+  return { fileName: cloudCallfile.fileName, uploadedAt: cloudCallfile.uploadedAt, stores: mergedStores };
+}
+
 // Overwrites just the cloud-synced slice from a Firestore snapshot, writing straight to
 // localStorage (bypassing saveState/CloudSync.pushState) since this data came FROM the cloud —
 // echoing it back up would be redundant. Used by cloud-sync.js on initial hydration and on every
-// live update from another device.
+// live update from another device. callfile is merged per-store (see mergeCallfile) rather than
+// replaced wholesale, since this hydration can race a not-yet-committed local write.
 function hydrateFromCloud(slice) {
   const state = loadState();
   if (slice.prices) state.prices = slice.prices;
   if (slice.targetCounts) state.targetCounts = slice.targetCounts;
-  if (slice.callfile) state.callfile = slice.callfile;
+  if (slice.callfile) state.callfile = mergeCallfile(state.callfile, slice.callfile);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   return state;
 }
@@ -229,7 +259,8 @@ function importCallfile(fileName, rows) {
       lastVisitDate: prior ? prior.lastVisitDate : null,
       nextVisitDate: prior ? prior.nextVisitDate : null,
       visits: prior ? prior.visits.slice() : [],
-      ppHistory: prior && prior.ppHistory ? prior.ppHistory.slice() : []
+      ppHistory: prior && prior.ppHistory ? prior.ppHistory.slice() : [],
+      updatedAt: new Date().toISOString()
     };
   });
 
@@ -263,7 +294,8 @@ function addStore(name, grade, postcode) {
     lastVisitDate: null,
     nextVisitDate: null,
     visits: [],
-    ppHistory: []
+    ppHistory: [],
+    updatedAt: new Date().toISOString()
   };
   saveState(state);
   return { state: state };
@@ -291,7 +323,8 @@ function updateStore(oldKey, name, grade, postcode) {
     lastVisitDate: store.lastVisitDate,
     nextVisitDate: store.nextVisitDate,
     visits: store.visits,
-    ppHistory: store.ppHistory
+    ppHistory: store.ppHistory,
+    updatedAt: new Date().toISOString()
   };
 
   if (newKey !== oldKey) delete state.callfile.stores[oldKey];
@@ -317,6 +350,7 @@ function savePPSnapshot(key, snapshot) {
   const history = (store.ppHistory || []).slice();
   history.unshift(snapshot);
   store.ppHistory = history.slice(0, 2);
+  store.updatedAt = new Date().toISOString();
   saveState(state);
   return state;
 }
@@ -339,6 +373,7 @@ function logVisit(key, dateStr, cadenceWeeks) {
   const next = new Date(dateStr);
   next.setDate(next.getDate() + cadenceWeeks * 7);
   store.nextVisitDate = next.toISOString().slice(0, 10);
+  store.updatedAt = new Date().toISOString();
   saveState(state);
   return state;
 }
@@ -350,6 +385,7 @@ function resetVisits(key) {
   store.visits = [];
   store.lastVisitDate = null;
   store.nextVisitDate = null;
+  store.updatedAt = new Date().toISOString();
   saveState(state);
   return state;
 }
@@ -361,6 +397,7 @@ function resetAllVisits() {
     store.visits = [];
     store.lastVisitDate = null;
     store.nextVisitDate = null;
+    store.updatedAt = new Date().toISOString();
   });
   saveState(state);
   return state;
