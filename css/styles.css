@@ -1323,6 +1323,33 @@ main.map-page {
 
 .map-notice.hidden { display: none; }
 
+.map-notice-heading { font-weight: 700; margin-bottom: 8px; }
+
+.map-notice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.map-notice-store {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.map-notice-store-name { font-weight: 700; color: var(--ink); }
+
+.map-notice-store-postcode { color: var(--ink-soft); font-size: 13px; }
+
+.map-notice-edit-link {
+  margin-left: auto;
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
 .empty-note.hidden { display: none; }
 
 #map-container {

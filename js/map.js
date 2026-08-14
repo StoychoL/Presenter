@@ -177,12 +177,12 @@ function popupHtml(store, status) {
 function plotMarkers(entries, cache) {
   mapState.markerLayer.clearLayers();
   const bounds = [];
-  let unplaced = 0;
+  const unplacedEntries = [];
 
   entries.forEach(function (e) {
     const pc = normalizePostcode(e.store.postcode);
     const geo = cache.entries[pc];
-    if (!geo || geo.found === false || geo.lat == null) { unplaced++; return; }
+    if (!geo || geo.found === false || geo.lat == null) { unplacedEntries.push(e); return; }
 
     const status = storeStatus(e.store);
     const isPlatinum = e.store.grade === "Platinum";
@@ -198,7 +198,7 @@ function plotMarkers(entries, cache) {
     bounds.push([geo.lat, geo.lng]);
   });
 
-  updateNotice(unplaced);
+  updateNotice(unplacedEntries);
 
   if (bounds.length && !mapState.hasFitBounds) {
     mapState.leaflet.fitBounds(bounds, { padding: [24, 24], maxZoom: 12 });
@@ -216,11 +216,25 @@ function hideEmpty() {
   document.getElementById("map-empty").classList.add("hidden");
 }
 
-function updateNotice(unplacedCount) {
+function updateNotice(unplacedEntries) {
   const el = document.getElementById("map-notice");
-  if (!unplacedCount) { el.classList.add("hidden"); return; }
-  el.textContent = unplacedCount + " store" + (unplacedCount === 1 ? "" : "s") +
-    " couldn't be placed on the map (postcode not recognized).";
+  if (!unplacedEntries.length) { el.classList.add("hidden"); el.innerHTML = ""; return; }
+
+  const count = unplacedEntries.length;
+  const rows = unplacedEntries.map(function (e) {
+    return (
+      '<div class="map-notice-store">' +
+        '<span class="map-notice-store-name">' + escAttr(e.store.name) + "</span>" +
+        '<span class="map-notice-store-postcode">' + escAttr(e.store.postcode) + "</span>" +
+        '<a class="map-notice-edit-link" href="callfile.html?edit=' + encodeURIComponent(e.key) + '">Edit</a>' +
+      "</div>"
+    );
+  }).join("");
+
+  el.innerHTML =
+    '<div class="map-notice-heading">' + count + " store" + (count === 1 ? "" : "s") +
+      " couldn't be placed on the map (postcode not recognized):</div>" +
+    '<div class="map-notice-list">' + rows + "</div>";
   el.classList.remove("hidden");
 }
 
@@ -244,13 +258,13 @@ function render() {
   if (!totalStores) {
     showEmpty("Upload a call file (on the Call File tab) to see stores on the map.");
     mapState.markerLayer.clearLayers();
-    updateNotice(0);
+    updateNotice([]);
     return;
   }
   if (!entries.length) {
     showEmpty("None of your uploaded stores have a postcode to place on the map.");
     mapState.markerLayer.clearLayers();
-    updateNotice(0);
+    updateNotice([]);
     return;
   }
   hideEmpty();

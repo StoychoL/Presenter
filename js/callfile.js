@@ -333,6 +333,18 @@ function render() {
 document.addEventListener("DOMContentLoaded", function () {
   render();
 
+  // Deep link from Map's "couldn't be placed" notice (?edit=<storeKey>) straight into this
+  // store's edit modal, so a rep can jump from "which store failed to geocode" to fixing its
+  // postcode in one tap instead of hunting for it in the list.
+  const editKeyParam = new URLSearchParams(location.search).get("edit");
+  if (editKeyParam) {
+    const linkedStore = Storage.loadState().callfile.stores[editKeyParam];
+    if (linkedStore) {
+      if (window.CALLFILE_GRADES.indexOf(linkedStore.grade) !== -1) Storage.setCallfileGrade(linkedStore.grade);
+      openEditStoreModal(editKeyParam);
+    }
+  }
+
   document.getElementById("callfile-input").addEventListener("change", function (e) {
     const file = e.target.files && e.target.files[0];
     e.target.value = "";
