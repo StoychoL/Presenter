@@ -5,7 +5,7 @@
 // Core Range is the same fixed 13-product "must stock" list (CORE_RANGE, isCore: true) for
 // all three tiers — it's the mandatory gate and never changes shape per tier. What differs per
 // tier is the size of the Bonus/Premium pool built on top of it, which is what grows the
-// required-product target (30 for Tier 1, 26 for Tier 2, 23 for Tier 3).
+// required-product target (30 for Tier 1, 24 for Tier 2, 23 for Tier 3).
 //
 // Every tier's non-core sections carry `promoteOnCheck: true`, meaning ticking one of those items
 // visually promotes it into the Core Range section on the page (see partnership.js's
@@ -20,6 +20,12 @@
 // tier can unlock (see partnership.js's sectionGateStats). Tier 3 additionally requires 2 of all
 // 4 bottle sizes combined plus 1 of 2 Crush flavours — this is the one rule kept unchanged from
 // the old scheme.
+//
+// Tier 2 goes one step further: its Captain Morgan/Gordon's gate groups also carry
+// `mergeCount: true`, meaning each pair counts as at most 1 toward the required-product total
+// (ticking one size, the other, or both all count as 1) — see partnership.js's
+// tierCheckedCount. That's why Tier 2's targetCount (24) is lower than its 26 physical products
+// (13 Core Range + 13 Bonus Range, 4 of which collapse into 2 counted slots).
 
 const CORE_RANGE = [
   "Smirnoff70Cl", "Smirnoff35cl", "Smirnoff20cl",
@@ -45,7 +51,9 @@ const BONUS_RANGE_TIER3 = ["Guinness0"].concat(BONUS_BOTTLES, BONUS_CRUSHES, ["S
 
 window.PP_LAYOUT = {
   tier1: {
-    label: "Tier 1", reward: 240, targetCount: 30,
+    // Unlocks at an absolute count (27 of 30), not the 90%+ rule — same mechanism as Tier 2/3,
+    // see partnership.js's tierStats/unlockCount handling.
+    label: "Tier 1", reward: 240, targetCount: 30, unlockCount: 27,
     sections: [
       { label: "Core Range", items: CORE_RANGE, isCore: true },
       { label: "Bonus Range", items: BONUS_RANGE_TIER1, promoteOnCheck: true },
@@ -53,14 +61,16 @@ window.PP_LAYOUT = {
     ]
   },
   tier2: {
-    label: "Tier 2", reward: 180, targetCount: 26,
+    // Unlocks at an absolute count (22 of 24), not the 90%+ rule Tier 1 uses — see
+    // partnership.js's tierStats/unlockCount handling, same mechanism as Tier 3.
+    label: "Tier 2", reward: 180, targetCount: 24, unlockCount: 22,
     sections: [
       { label: "Core Range", items: CORE_RANGE, isCore: true },
       {
         label: "Bonus Range", items: BONUS_RANGE_TIER2, promoteOnCheck: true,
         gate: { hideTag: true, groups: [
-          { label: "Captain Morgan", items: ["CaptianMorgan35cl", "CaptianMorgan20cl"], min: 1 },
-          { label: "Gordon's", items: ["GordonsOriginal35cl", "Gordons20cl"], min: 1 }
+          { label: "Captain Morgan", items: ["CaptianMorgan35cl", "CaptianMorgan20cl"], min: 1, mergeCount: true },
+          { label: "Gordon's", items: ["GordonsOriginal35cl", "Gordons20cl"], min: 1, mergeCount: true }
         ] }
       }
     ]

@@ -65,6 +65,12 @@ function loadState() {
         // 13 shared products, Bonus Range grew to 13 with both Captain Morgan/Gordon's sizes). A
         // saved value of exactly 25 predates that fix — let the new default through instead.
         if (tierKey === "tier2" && parsed.targetCounts[tierKey] === 25) return;
+        // One-time migration: Tier 2's default target changed from 26 to 24 — Captain Morgan and
+        // Gordon's 35cl/20cl pairs now count as a single required slot each instead of two
+        // separately-counted products (see layout-pp.js's mergeCount / partnership.js's
+        // tierCheckedCount). A saved value of exactly 26 predates that fix — let the new default
+        // through instead.
+        if (tierKey === "tier2" && parsed.targetCounts[tierKey] === 26) return;
         if (typeof parsed.targetCounts[tierKey] === "number") base.targetCounts[tierKey] = parsed.targetCounts[tierKey];
       });
     }

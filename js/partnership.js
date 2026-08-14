@@ -138,7 +138,10 @@ function coreStats(state, tier) {
 function gateSummaryText(tier) {
   const parts = ["Core Range 100% stocked"];
   tier.sections.forEach(function (section) {
-    if (!section.gate) return;
+    // hideTag sections (e.g. Tier 2's Captain Morgan/Gordon's pairs) already hide their gate tag
+    // on the page — skip them here too so the reward line doesn't surface a breakdown the rep
+    // never sees rendered anywhere else.
+    if (!section.gate || section.gate.hideTag) return;
     const groupText = section.gate.groups.map(function (g) {
       return "at least " + g.min + " of " + g.items.length + " " + g.label;
     }).join(" and ");
@@ -147,12 +150,37 @@ function gateSummaryText(tier) {
   return parts.join("; ");
 }
 
-function tierStats(state, tierKey) {
-  const tier = window.PP_LAYOUT[tierKey];
+// Most items count individually toward a tier's required-product total, but a gate group flagged
+// `mergeCount: true` (currently Tier 2's Captain Morgan/Gordon's 35cl+20cl pairs) counts as at
+// most 1 no matter how many of its items are ticked — ticking one size, the other, or both all
+// count the same.
+function tierCheckedCount(state, tier) {
+  const mergedIds = new Set();
+  const mergeGroups = [];
+  tier.sections.forEach(function (section) {
+    if (!section.gate) return;
+    section.gate.groups.forEach(function (g) {
+      if (!g.mergeCount) return;
+      mergeGroups.push(g.items);
+      g.items.forEach(function (id) { mergedIds.add(id); });
+    });
+  });
   const ids = new Set();
   tier.sections.forEach(function (section) { section.items.forEach(function (id) { ids.add(id); }); });
-  let checkedCount = 0;
-  ids.forEach(function (id) { if (state.ppSession.checked[id]) checkedCount++; });
+  let count = 0;
+  ids.forEach(function (id) {
+    if (mergedIds.has(id)) return;
+    if (state.ppSession.checked[id]) count++;
+  });
+  mergeGroups.forEach(function (items) {
+    if (items.some(function (id) { return !!state.ppSession.checked[id]; })) count++;
+  });
+  return count;
+}
+
+function tierStats(state, tierKey) {
+  const tier = window.PP_LAYOUT[tierKey];
+  const checkedCount = tierCheckedCount(state, tier);
   const target = state.targetCounts[tierKey] || 1;
   const realPct = Math.round((checkedCount / target) * 100);
 
@@ -165,7 +193,7 @@ function tierStats(state, tierKey) {
   const pct = gatesComplete ? realPct : Math.min(realPct, 89);
 
   // Most tiers unlock their reward at 90%+ of the required count; a tier can instead set
-  // `unlockCount` (currently only Tier 3, at 20 of 23) to unlock at that exact count instead —
+  // `unlockCount` (Tier 3 at 20 of 23, Tier 2 at 22 of 24) to unlock at that exact count instead —
   // either way, the section gates above (Core Range 100%, Bonus Range quotas) still apply on top.
   const unlockCount = tier.unlockCount || null;
   const unlocked = unlockCount != null
