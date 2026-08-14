@@ -176,38 +176,236 @@ main {
   height: auto;
 }
 
-.home-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  padding: 20px 16px;
-}
-
-@media (max-width: 640px) {
-  .home-actions { grid-template-columns: 1fr; }
-}
-
-.nav-card {
-  display: block;
+.week-panel,
+.month-panel {
+  margin: 20px 16px 0;
+  padding: 20px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 28px 20px;
+}
+
+.week-panel-head,
+.month-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.week-panel-head h3,
+.month-panel-head h3 {
+  margin: 0;
+  font-size: 23px;
+  font-weight: 800;
+  color: var(--accent-dark);
+}
+
+.week-range,
+.month-sub {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.week-total {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.week-total-frac {
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.week-total-label {
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.week-progress,
+.coverage-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.week-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.4s var(--ease-out-expo);
+}
+
+.weekday-strip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.weekday-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.weekday-count {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.weekday-bar-track {
+  width: 100%;
+  height: 64px;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.weekday-bar-fill {
+  width: 100%;
+  min-height: 4px;
+  background: var(--ink-soft);
+  opacity: 0.35;
+  border-radius: 8px 8px 0 0;
+  transition: height 0.4s var(--ease-out-expo);
+}
+
+.weekday-col.is-today .weekday-bar-fill {
+  background: var(--accent);
+  opacity: 1;
+}
+
+.weekday-col.is-today .weekday-count,
+.weekday-col.is-today .weekday-label {
+  color: var(--accent-dark);
+}
+
+.weekday-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.coverage-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.coverage-pct {
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.coverage-copy {
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.coverage-bar-fill {
+  height: 100%;
+  background: var(--good);
+  border-radius: 999px;
+  transition: width 0.4s var(--ease-out-expo);
+}
+
+.grade-breakdown {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.grade-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  flex: 1;
+  min-width: 96px;
+}
+
+.grade-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+}
+.grade-dot-platinum { background: #5b6472; }
+.grade-dot-gold { background: var(--gold); }
+.grade-dot-silver { background: #9aa1a8; }
+
+.grade-pill-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  flex: 1;
+}
+
+.grade-pill-frac {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.deck-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 16px 0;
+  padding: 14px 18px;
+  min-height: var(--tap);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
   text-decoration: none;
   color: var(--ink);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
 }
 
-.nav-card h2 {
-  margin: 0 0 6px;
-  color: var(--accent-dark);
-  font-size: 24px;
+.deck-link-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.nav-card p {
-  margin: 0;
-  color: var(--ink-soft);
+.deck-link-title {
   font-size: 16px;
+  font-weight: 700;
+}
+
+.deck-link-sub {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.deck-link-arrow {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent-dark);
+  flex: none;
 }
 
 /* ---------- Category sections ---------- */

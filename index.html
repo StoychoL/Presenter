@@ -17,29 +17,37 @@
     <div class="hero-banner">
       <img src="images/Hero.png" alt="Diageo — The Home of Johnnie Walker, Smirnoff, Captain Morgan, Gordon's, Guinness &amp; Baileys" />
     </div>
-    <div class="home-actions">
-      <a class="nav-card" href="products.html">
-        <h2>Product Presenter</h2>
-        <p>Build a live order with your client and show the running total in-store.</p>
-      </a>
-      <a class="nav-card" href="partnership.html">
-        <h2>Partnership Program</h2>
-        <p>Track tier progress for this store and see how close you are to the reward.</p>
-      </a>
-      <a class="nav-card" href="callfile.html">
-        <h2>Call File</h2>
-        <p>Upload your call file and track visit compliance by store tier.</p>
-      </a>
-      <a class="nav-card" href="deck.html">
-        <h2>Sales Presenter Deck</h2>
-        <p>View the full presenter deck.</p>
-      </a>
-    </div>
+    <section class="week-panel" aria-label="This week's visit activity">
+      <div class="week-panel-head">
+        <h3>This Week</h3>
+        <span class="week-range" id="week-range"></span>
+      </div>
+      <div id="week-panel-body"></div>
+    </section>
+
+    <section class="month-panel" aria-label="Call file coverage this month">
+      <div class="month-panel-head">
+        <h3>This Month</h3>
+        <span class="month-sub">Call File coverage</span>
+      </div>
+      <div id="month-panel-body"></div>
+    </section>
+
+    <a class="deck-link" href="deck.html">
+      <span class="deck-link-text">
+        <span class="deck-link-title">Sales Presenter Deck</span>
+        <span class="deck-link-sub">View the full presenter deck</span>
+      </span>
+      <span class="deck-link-arrow" aria-hidden="true">→</span>
+    </a>
   </main>
   <script type="module" src="js/firebase-config.js"></script>
+  <script src="js/layout-callfile.js"></script>
+  <script src="js/callfile-status.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/cloud-sync.js"></script>
+  <script src="js/home.js"></script>
   <script>renderNav("home");</script>
 </body>
 </html>
