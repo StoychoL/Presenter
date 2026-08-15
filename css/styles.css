@@ -62,7 +62,7 @@ input:focus-visible {
 .app-header {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 40;
   display: flex;
   align-items: center;
   gap: 12px;
