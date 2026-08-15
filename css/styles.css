@@ -1356,6 +1356,8 @@ main.map-page {
   width: 100%;
   height: calc(100vh - 132px);
   margin-top: 12px;
+  position: relative;
+  z-index: 1;
 }
 
 .leaflet-popup-content-wrapper {
