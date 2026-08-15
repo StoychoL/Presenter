@@ -65,7 +65,7 @@ function saveGeocodeCache(cache) {
 
 function collectStoreEntries(state) {
   const stores = state.callfile.stores;
-  return Object.keys(stores)
+  return Storage.liveStoreKeys(stores)
     .map(function (key) { return { key: key, store: stores[key] }; })
     .filter(function (e) { return e.store.postcode && e.store.postcode.trim(); });
 }
@@ -247,7 +247,7 @@ function showFetchErrorNotice() {
 function render() {
   const state = Storage.loadState();
   const entries = collectStoreEntries(state);
-  const totalStores = Object.keys(state.callfile.stores).length;
+  const totalStores = Storage.liveStoreKeys(state.callfile.stores).length;
 
   document.getElementById("map-meta").textContent = totalStores
     ? entries.length + " of " + totalStores + " stores have a postcode"

@@ -126,7 +126,7 @@ function closeRangeModal() {
 
 function renderRangeModal(state) {
   const modal = document.getElementById("range-modal");
-  const store = callfileUi.rangeKey ? state.callfile.stores[callfileUi.rangeKey] : null;
+  const store = callfileUi.rangeKey ? Storage.getLiveStore(state.callfile.stores, callfileUi.rangeKey) : null;
   const history = store ? (store.ppHistory || []) : [];
   if (!store || history.length === 0) {
     modal.classList.add("hidden");
@@ -233,7 +233,7 @@ function closeVisitModal() {
 
 function renderVisitModal(state) {
   const modal = document.getElementById("visit-modal");
-  const store = callfileUi.logKey ? state.callfile.stores[callfileUi.logKey] : null;
+  const store = callfileUi.logKey ? Storage.getLiveStore(state.callfile.stores, callfileUi.logKey) : null;
   if (!store) {
     modal.classList.add("hidden");
     return;
@@ -265,7 +265,7 @@ function renderStoreModal(state) {
     return;
   }
   const isNew = callfileUi.editKey === "__new__";
-  const store = isNew ? null : state.callfile.stores[callfileUi.editKey];
+  const store = isNew ? null : Storage.getLiveStore(state.callfile.stores, callfileUi.editKey);
   if (!isNew && !store) {
     // Store was deleted/renamed elsewhere while this modal was open — close gracefully.
     modal.classList.add("hidden");
@@ -290,7 +290,7 @@ function renderStoreModal(state) {
 function render() {
   const state = Storage.loadState();
   const cf = state.callfile;
-  const storeCount = Object.keys(cf.stores).length;
+  const storeCount = Storage.liveStoreKeys(cf.stores).length;
 
   document.getElementById("callfile-meta").textContent = cf.fileName
     ? storeCount + " stores loaded from " + cf.fileName
@@ -301,7 +301,7 @@ function render() {
   const byGrade = {};
   window.CALLFILE_GRADES.forEach(function (g) { byGrade[g] = []; });
 
-  Object.keys(cf.stores).forEach(function (key) {
+  Storage.liveStoreKeys(cf.stores).forEach(function (key) {
     const store = cf.stores[key];
     if (query) {
       const haystack = (store.name + " " + store.postcode).toLowerCase();
@@ -338,7 +338,7 @@ document.addEventListener("DOMContentLoaded", function () {
   // postcode in one tap instead of hunting for it in the list.
   const editKeyParam = new URLSearchParams(location.search).get("edit");
   if (editKeyParam) {
-    const linkedStore = Storage.loadState().callfile.stores[editKeyParam];
+    const linkedStore = Storage.getLiveStore(Storage.loadState().callfile.stores, editKeyParam);
     if (linkedStore) {
       if (window.CALLFILE_GRADES.indexOf(linkedStore.grade) !== -1) Storage.setCallfileGrade(linkedStore.grade);
       openEditStoreModal(editKeyParam);
@@ -366,7 +366,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (parsed.skipped) notes.push(parsed.skipped + " row(s) skipped (missing name or unrecognized grade)");
         if (result.duplicateCount) notes.push(result.duplicateCount + " duplicate row(s) collapsed to one store each");
         if (notes.length) {
-          const storeCount = Object.keys(result.state.callfile.stores).length;
+          const storeCount = Storage.liveStoreKeys(result.state.callfile.stores).length;
           alert("Loaded " + storeCount + " stores. " + notes.join("; ") + ".");
         }
       } catch (err) {
@@ -397,7 +397,7 @@ document.addEventListener("DOMContentLoaded", function () {
   document.getElementById("add-store-btn").addEventListener("click", openAddStoreModal);
 
   document.getElementById("reset-all-visits-btn").addEventListener("click", function () {
-    const count = Object.keys(Storage.loadState().callfile.stores).length;
+    const count = Storage.liveStoreKeys(Storage.loadState().callfile.stores).length;
     if (!count) return;
     if (!confirm("Reset visit history for all " + count + " stores? This can't be undone.")) return;
     Storage.resetAllVisits();
@@ -430,7 +430,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const dateVal = document.getElementById("visit-date-input").value;
     if (!dateVal) { alert("Pick a date first."); return; }
     const state = Storage.loadState();
-    const store = state.callfile.stores[key];
+    const store = Storage.getLiveStore(state.callfile.stores, key);
     if (!store) { closeVisitModal(); return; }
     const cfg = window.CALLFILE_GRADE_CONFIG[store.grade] || { cadenceWeeks: 4 };
     Storage.logVisit(key, dateVal, cfg.cadenceWeeks);
@@ -466,7 +466,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const key = callfileUi.editKey;
     if (!key || key === "__new__") return;
     const state = Storage.loadState();
-    const store = state.callfile.stores[key];
+    const store = Storage.getLiveStore(state.callfile.stores, key);
     const name = store ? store.name : "this store";
     if (!confirm("Reset visit history for " + name + "? This can't be undone.")) return;
     Storage.resetVisits(key);
@@ -478,7 +478,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const key = callfileUi.editKey;
     if (!key || key === "__new__") return;
     const state = Storage.loadState();
-    const store = state.callfile.stores[key];
+    const store = Storage.getLiveStore(state.callfile.stores, key);
     const name = store ? store.name : "this store";
     if (!confirm("Delete " + name + "? This removes its visit history and can't be undone.")) return;
     Storage.deleteStore(key);

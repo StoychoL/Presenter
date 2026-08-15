@@ -120,7 +120,32 @@ function pickNewerStore(localStore, cloudStore) {
     return localStore.updatedAt >= cloudStore.updatedAt ? localStore : cloudStore;
   }
   // Records saved before updatedAt existed: fall back to the old blind-overwrite-safe heuristic.
-  return localStore.visits.length >= cloudStore.visits.length ? localStore : cloudStore;
+  // (visits may be absent on a tombstone — see deleteStore/updateStore/importCallfile below.)
+  const localCount = localStore.visits ? localStore.visits.length : 0;
+  const cloudCount = cloudStore.visits ? cloudStore.visits.length : 0;
+  return localCount >= cloudCount ? localStore : cloudStore;
+}
+
+// A rep can rename a store (changing its name|postcode key), delete it, or re-upload a call file
+// that drops it — all three used to just `delete` the key locally. That's not safe under the
+// per-store merge above: mergeCallfile() can't tell "never synced to this device" apart from
+// "was deleted," so a stale cloud read that still has the old key resurrects it. Tombstoning
+// (leaving a small `{ deleted: true, updatedAt }` marker instead of removing the key) gives the
+// removal its own updatedAt, so the same last-write-wins comparison that protects a just-logged
+// visit also protects a deletion/rename from being undone by a stale read.
+function tombstone() {
+  return { deleted: true, updatedAt: new Date().toISOString(), visits: [] };
+}
+
+// Every direct consumer of callfile.stores must go through these two so a tombstone is invisible
+// everywhere except the merge layer itself (js/callfile.js, js/map.js, js/partnership.js, js/home.js).
+function liveStoreKeys(stores) {
+  return Object.keys(stores || {}).filter(function (key) { return !stores[key].deleted; });
+}
+
+function getLiveStore(stores, key) {
+  const store = (stores || {})[key];
+  return store && !store.deleted ? store : null;
 }
 
 function mergeCallfile(localCallfile, cloudCallfile) {
@@ -251,7 +276,9 @@ function importCallfile(fileName, rows) {
     const key = storeKey(row.name, row.postcode);
     if (!key.replace("|", "")) return;
     if (next[key]) duplicateCount++;
-    const prior = existing[key];
+    // A tombstoned prior (this key was deleted/renamed away since the last upload) is treated as
+    // no prior at all — reappearing in a fresh upload starts it clean rather than reviving old data.
+    const prior = getLiveStore(existing, key);
     next[key] = {
       name: row.name,
       grade: row.grade,
@@ -262,6 +289,12 @@ function importCallfile(fileName, rows) {
       ppHistory: prior && prior.ppHistory ? prior.ppHistory.slice() : [],
       updatedAt: new Date().toISOString()
     };
+  });
+
+  // Any store that was live before this upload but isn't in the new file needs to be tombstoned,
+  // not just dropped — otherwise a stale cloud read that still has it can resurrect it later.
+  liveStoreKeys(existing).forEach(function (key) {
+    if (!next[key]) next[key] = tombstone();
   });
 
   state.callfile = {
@@ -285,7 +318,7 @@ function addStore(name, grade, postcode) {
   const state = loadState();
   const key = storeKey(trimmedName, postcode);
   if (!key.replace("|", "")) return { error: "Enter a store name." };
-  if (state.callfile.stores[key]) return { error: "A store with this name and postcode already exists." };
+  if (getLiveStore(state.callfile.stores, key)) return { error: "A store with this name and postcode already exists." };
 
   state.callfile.stores[key] = {
     name: trimmedName,
@@ -307,12 +340,12 @@ function updateStore(oldKey, name, grade, postcode) {
   if (window.CALLFILE_GRADES.indexOf(grade) === -1) return { error: "Pick a grade." };
 
   const state = loadState();
-  const store = state.callfile.stores[oldKey];
+  const store = getLiveStore(state.callfile.stores, oldKey);
   if (!store) return { error: "That store no longer exists." };
 
   const newKey = storeKey(trimmedName, postcode);
   if (!newKey.replace("|", "")) return { error: "Enter a store name." };
-  if (newKey !== oldKey && state.callfile.stores[newKey]) {
+  if (newKey !== oldKey && getLiveStore(state.callfile.stores, newKey)) {
     return { error: "A store with this name and postcode already exists." };
   }
 
@@ -327,7 +360,9 @@ function updateStore(oldKey, name, grade, postcode) {
     updatedAt: new Date().toISOString()
   };
 
-  if (newKey !== oldKey) delete state.callfile.stores[oldKey];
+  // Renaming changes the key (name|postcode) — tombstone the old one rather than deleting it
+  // outright, so a stale cloud read can't resurrect it (see tombstone() above).
+  if (newKey !== oldKey) state.callfile.stores[oldKey] = tombstone();
   state.callfile.stores[newKey] = updated;
 
   saveState(state);
@@ -336,7 +371,8 @@ function updateStore(oldKey, name, grade, postcode) {
 
 function deleteStore(key) {
   const state = loadState();
-  delete state.callfile.stores[key];
+  if (!getLiveStore(state.callfile.stores, key)) return state;
+  state.callfile.stores[key] = tombstone();
   saveState(state);
   return state;
 }
@@ -345,7 +381,7 @@ function deleteStore(key) {
 // Keeps only the 2 most recent, newest first — there's no need for unlimited history here.
 function savePPSnapshot(key, snapshot) {
   const state = loadState();
-  const store = state.callfile.stores[key];
+  const store = getLiveStore(state.callfile.stores, key);
   if (!store) return state;
   const history = (store.ppHistory || []).slice();
   history.unshift(snapshot);
@@ -364,7 +400,7 @@ function setCallfileGrade(grade) {
 
 function logVisit(key, dateStr, cadenceWeeks) {
   const state = loadState();
-  const store = state.callfile.stores[key];
+  const store = getLiveStore(state.callfile.stores, key);
   if (!store) return state;
   // Each tap is a distinct visit event — a Platinum store visited twice in one day must still
   // count as 2 toward its monthly requirement, so visits are never deduped by date.
@@ -380,7 +416,7 @@ function logVisit(key, dateStr, cadenceWeeks) {
 
 function resetVisits(key) {
   const state = loadState();
-  const store = state.callfile.stores[key];
+  const store = getLiveStore(state.callfile.stores, key);
   if (!store) return state;
   store.visits = [];
   store.lastVisitDate = null;
@@ -392,7 +428,7 @@ function resetVisits(key) {
 
 function resetAllVisits() {
   const state = loadState();
-  Object.keys(state.callfile.stores).forEach(function (key) {
+  liveStoreKeys(state.callfile.stores).forEach(function (key) {
     const store = state.callfile.stores[key];
     store.visits = [];
     store.lastVisitDate = null;
@@ -417,6 +453,8 @@ window.Storage = {
   selectAllTier: selectAllTier,
   resetPPSession: resetPPSession,
   storeKey: storeKey,
+  liveStoreKeys: liveStoreKeys,
+  getLiveStore: getLiveStore,
   importCallfile: importCallfile,
   addStore: addStore,
   updateStore: updateStore,

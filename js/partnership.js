@@ -289,7 +289,7 @@ function renderStorePicker(state) {
   }
   const query = (document.getElementById("store-picker-search").value || "").trim().toLowerCase();
   const stores = state.callfile.stores;
-  const rows = Object.keys(stores)
+  const rows = Storage.liveStoreKeys(stores)
     .filter(function (key) {
       if (!query) return true;
       const store = stores[key];
@@ -390,7 +390,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   document.getElementById("save-callfile-btn").addEventListener("click", function () {
     const state = Storage.loadState();
-    if (Object.keys(state.callfile.stores).length === 0) {
+    if (Storage.liveStoreKeys(state.callfile.stores).length === 0) {
       alert("Upload a call file first (Call File tab) before saving a range to a store.");
       return;
     }
