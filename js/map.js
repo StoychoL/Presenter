@@ -67,7 +67,11 @@ function collectStoreEntries(state) {
   const stores = state.callfile.stores;
   return Storage.liveStoreKeys(stores)
     .map(function (key) { return { key: key, store: stores[key] }; })
-    .filter(function (e) { return e.store.postcode && e.store.postcode.trim(); });
+    .filter(function (e) { return e.store.postcode && e.store.postcode.trim(); })
+    // Sorted by key so co-located markers (see plotMarkers' offset grouping) always get assigned
+    // the same relative position on every render, rather than whatever order Object.keys() happens
+    // to return — which isn't guaranteed to survive a Firestore round-trip.
+    .sort(function (a, b) { return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; });
 }
 
 function chunk(arr, size) {
@@ -174,19 +178,65 @@ function popupHtml(store, status) {
   );
 }
 
+// postcodes.io geocodes to a postcode's centroid, not an exact address — so stores that share a
+// postcode (a shopping parade, e.g.) land on the exact same coordinate. Left alone, Leaflet just
+// stacks one circleMarker on top of another: only the one drawn last is visible or clickable, the
+// rest are perfectly hidden underneath (not missing data, just visually/interactively unreachable
+// — and since it's whichever one happened to be drawn last, which store "wins" can look like it
+// changes across reloads). offsetForIndex spreads a group's members around a small fixed-radius
+// circle centered on the true point, so every store gets its own distinguishable, tappable pin.
+function offsetForIndex(index, total, baseLat) {
+  if (total <= 1) return { dLat: 0, dLng: 0 };
+  // Not meant to be geographically precise — postcode-level geocoding already isn't — just
+  // enough to keep co-located stores individually tappable once a rep zooms to a normal
+  // interacting level (a rep can't usefully tell two stores apart at the widest zoom anyway,
+  // same as any dense map of points). Deliberately kept well under ~150m: neighboring-but-
+  // distinct postcodes in dense areas can be barely 150-200m apart in reality (e.g. CR0 0JB to
+  // CR0 0JD is ~170m), and a bigger radius here risks pushing one postcode's offset markers into
+  // a completely different, unrelated postcode's cluster.
+  const radiusMeters = 30 + Math.min(total, 8) * 12;
+  const angle = (2 * Math.PI * index) / total;
+  const metersPerDegLat = 111320;
+  const metersPerDegLng = 111320 * Math.cos((baseLat * Math.PI) / 180);
+  return {
+    dLat: (radiusMeters * Math.sin(angle)) / metersPerDegLat,
+    dLng: (radiusMeters * Math.cos(angle)) / metersPerDegLng
+  };
+}
+
 function plotMarkers(entries, cache) {
   mapState.markerLayer.clearLayers();
   const bounds = [];
   const unplacedEntries = [];
+  const placeable = [];
+  const groups = new Map();
 
   entries.forEach(function (e) {
     const pc = normalizePostcode(e.store.postcode);
     const geo = cache.entries[pc];
     if (!geo || geo.found === false || geo.lat == null) { unplacedEntries.push(e); return; }
+    const item = { e: e, geo: geo };
+    placeable.push(item);
+    const groupKey = geo.lat.toFixed(5) + "," + geo.lng.toFixed(5);
+    if (!groups.has(groupKey)) groups.set(groupKey, []);
+    groups.get(groupKey).push(item);
+  });
 
+  // entries (and therefore placeable/groups) are already sorted by store key in
+  // collectStoreEntries(), so index-within-group is stable across renders.
+  groups.forEach(function (group) {
+    group.forEach(function (item, i) {
+      const offset = offsetForIndex(i, group.length, item.geo.lat);
+      item.plotLat = item.geo.lat + offset.dLat;
+      item.plotLng = item.geo.lng + offset.dLng;
+    });
+  });
+
+  placeable.forEach(function (item) {
+    const e = item.e;
     const status = storeStatus(e.store);
     const isPlatinum = e.store.grade === "Platinum";
-    const marker = L.circleMarker([geo.lat, geo.lng], {
+    const marker = L.circleMarker([item.plotLat, item.plotLng], {
       radius: 9,
       weight: isPlatinum ? 3 : 2,
       color: isPlatinum ? PLATINUM_RING_COLOR : "#fff",
@@ -195,7 +245,7 @@ function plotMarkers(entries, cache) {
     }).bindPopup(popupHtml(e.store, status));
 
     marker.addTo(mapState.markerLayer);
-    bounds.push([geo.lat, geo.lng]);
+    bounds.push([item.plotLat, item.plotLng]);
   });
 
   updateNotice(unplacedEntries);
