@@ -34,6 +34,7 @@ function defaultState() {
     callfile: {
       fileName: null,
       uploadedAt: null,
+      updatedAt: null,
       stores: {}
     },
     callfileSession: {
@@ -84,20 +85,19 @@ function loadState() {
   }
 }
 
-// touchedStoreKeys (optional): the callfile.stores key(s) this specific mutation actually changed,
-// e.g. logVisit(key) passes [key]. CloudSync.pushState uses it to push only those stores via a
-// Firestore merge write instead of the whole callfile — see js/cloud-sync.js for why: without it,
-// a second device with a stale local cache pushing for an unrelated reason (e.g. a price edit)
-// would blindly overwrite every other store's cloud data with whatever it has cached, including
-// stores it never touched. Mutators that don't touch callfile.stores (setPrice, toggleChecked,
+// callfileChanged (optional bool): whether this specific mutation touched state.callfile.
+// CloudSync.pushState uses it to decide whether to include callfile in the push at all — see
+// js/cloud-sync.js for why: without it, a second browser/device with a stale local cache pushing
+// for an unrelated reason (e.g. a price edit) would blindly overwrite the cloud's newer call file
+// with whatever it has cached. Mutators that don't touch callfile.stores (setPrice, toggleChecked,
 // etc.) simply omit this argument.
-function saveState(state, touchedStoreKeys) {
+function saveState(state, callfileChanged) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   // Mirrors the persisted slice up to the signed-in rep's Firestore doc in the background — see
   // js/cloud-sync.js. Every mutation already funnels through this one function, so this is the
   // only place cloud sync needs to hook in; localStorage stays the synchronous source of truth
   // every render() reads from, cloud sync is purely a background mirror on top.
-  if (window.CloudSync) window.CloudSync.pushState(state, touchedStoreKeys);
+  if (window.CloudSync) window.CloudSync.pushState(state, callfileChanged);
 }
 
 function hasSavedData() {
@@ -114,70 +114,43 @@ function defaultPersistedSlice() {
   return cloudSlice(defaultState());
 }
 
-// A rep can navigate to another page before a just-made change (e.g. logVisit) has actually
-// finished pushing to Firestore — the next page's own hydration read can then race that in-flight
-// write and come back stale. pickNewerStore/mergeCallfile compare each store's updatedAt so a
-// stale read can't roll back a newer local change; whichever side was genuinely written more
-// recently wins, which also means a legitimate resetVisits from another device still propagates
-// correctly (unlike a naive "keep whichever visits array is longer" comparison would allow).
-function pickNewerStore(localStore, cloudStore) {
-  if (!localStore) return cloudStore;
-  if (!cloudStore) return localStore;
-  if (localStore.updatedAt && cloudStore.updatedAt) {
-    return localStore.updatedAt >= cloudStore.updatedAt ? localStore : cloudStore;
-  }
-  // Records saved before updatedAt existed: fall back to the old blind-overwrite-safe heuristic.
-  // (visits may be absent on a tombstone — see deleteStore/updateStore/importCallfile below.)
-  const localCount = localStore.visits ? localStore.visits.length : 0;
-  const cloudCount = cloudStore.visits ? cloudStore.visits.length : 0;
-  return localCount >= cloudCount ? localStore : cloudStore;
-}
+// A rep can have this account open in more than one browser/device at once (e.g. this same phone's
+// Chrome and Safari), each with its own independent local cache. callfile.updatedAt (bumped by
+// every mutator below) makes conflict resolution simple and predictable: whichever side — the
+// whole local call file, or the whole incoming cloud one — was genuinely written more recently
+// wins outright, never a per-store blend. A rep can navigate/switch browsers before a just-made
+// change (e.g. logVisit) has actually finished pushing to Firestore — the next hydration read can
+// then race that in-flight write and come back stale; comparing updatedAt is what stops that stale
+// read from rolling back a newer local change.
+//
+// This is a deliberate simplification over a hypothetical true concurrent-edit case (editing
+// *different* stores in two sessions within the same few seconds, before either syncs) — that
+// case's loser would have its edit dropped rather than merged in. Accepted because actual usage is
+// one rep checking one browser/device at a time, not simultaneous editing across two.
 
-// A rep can rename a store (changing its name|postcode key), delete it, or re-upload a call file
-// that drops it — all three used to just `delete` the key locally. That's not safe under the
-// per-store merge above: mergeCallfile() can't tell "never synced to this device" apart from
-// "was deleted," so a stale cloud read that still has the old key resurrects it. Tombstoning
-// (leaving a small `{ deleted: true, updatedAt }` marker instead of removing the key) gives the
-// removal its own updatedAt, so the same last-write-wins comparison that protects a just-logged
-// visit also protects a deletion/rename from being undone by a stale read.
-function tombstone() {
-  return { deleted: true, updatedAt: new Date().toISOString(), visits: [] };
-}
-
-// Every direct consumer of callfile.stores must go through these two so a tombstone is invisible
-// everywhere except the merge layer itself (js/callfile.js, js/map.js, js/partnership.js, js/home.js).
 function liveStoreKeys(stores) {
-  return Object.keys(stores || {}).filter(function (key) { return !stores[key].deleted; });
+  return Object.keys(stores || {});
 }
 
 function getLiveStore(stores, key) {
-  const store = (stores || {})[key];
-  return store && !store.deleted ? store : null;
-}
-
-function mergeCallfile(localCallfile, cloudCallfile) {
-  const mergedStores = {};
-  Object.keys(cloudCallfile.stores || {}).forEach(function (key) {
-    mergedStores[key] = pickNewerStore(localCallfile && localCallfile.stores[key], cloudCallfile.stores[key]);
-  });
-  if (localCallfile && localCallfile.stores) {
-    Object.keys(localCallfile.stores).forEach(function (key) {
-      if (!mergedStores[key]) mergedStores[key] = localCallfile.stores[key]; // e.g. added locally, not yet pushed
-    });
-  }
-  return { fileName: cloudCallfile.fileName, uploadedAt: cloudCallfile.uploadedAt, stores: mergedStores };
+  return (stores || {})[key] || null;
 }
 
 // Overwrites just the cloud-synced slice from a Firestore snapshot, writing straight to
 // localStorage (bypassing saveState/CloudSync.pushState) since this data came FROM the cloud —
 // echoing it back up would be redundant. Used by cloud-sync.js on initial hydration and on every
-// live update from another device. callfile is merged per-store (see mergeCallfile) rather than
-// replaced wholesale, since this hydration can race a not-yet-committed local write.
+// live update from another device. callfile is replaced wholesale only when the incoming copy is
+// at least as new as what's already local (see callfile.updatedAt note above) — otherwise this
+// hydration is racing a not-yet-committed local write, so local is kept as-is.
 function hydrateFromCloud(slice) {
   const state = loadState();
   if (slice.prices) state.prices = slice.prices;
   if (slice.targetCounts) state.targetCounts = slice.targetCounts;
-  if (slice.callfile) state.callfile = mergeCallfile(state.callfile, slice.callfile);
+  if (slice.callfile) {
+    const localAt = state.callfile.updatedAt || "";
+    const cloudAt = slice.callfile.updatedAt || "";
+    if (cloudAt >= localAt) state.callfile = slice.callfile;
+  }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   return state;
 }
@@ -283,8 +256,6 @@ function importCallfile(fileName, rows) {
     const key = storeKey(row.name, row.postcode);
     if (!key.replace("|", "")) return;
     if (next[key]) duplicateCount++;
-    // A tombstoned prior (this key was deleted/renamed away since the last upload) is treated as
-    // no prior at all — reappearing in a fresh upload starts it clean rather than reviving old data.
     const prior = getLiveStore(existing, key);
     next[key] = {
       name: row.name,
@@ -293,23 +264,20 @@ function importCallfile(fileName, rows) {
       lastVisitDate: prior ? prior.lastVisitDate : null,
       nextVisitDate: prior ? prior.nextVisitDate : null,
       visits: prior ? prior.visits.slice() : [],
-      ppHistory: prior && prior.ppHistory ? prior.ppHistory.slice() : [],
-      updatedAt: new Date().toISOString()
+      ppHistory: prior && prior.ppHistory ? prior.ppHistory.slice() : []
     };
   });
 
-  // Any store that was live before this upload but isn't in the new file needs to be tombstoned,
-  // not just dropped — otherwise a stale cloud read that still has it can resurrect it later.
-  liveStoreKeys(existing).forEach(function (key) {
-    if (!next[key]) next[key] = tombstone();
-  });
+  // A store that was present before this upload but isn't in the new file is simply dropped —
+  // no separate tombstone needed under whole-callfile last-write-wins (see hydrateFromCloud).
 
   state.callfile = {
     fileName: fileName,
     uploadedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     stores: next
   };
-  saveState(state, Object.keys(next));
+  saveState(state, true);
   return { state: state, duplicateCount: duplicateCount };
 }
 
@@ -334,10 +302,10 @@ function addStore(name, grade, postcode) {
     lastVisitDate: null,
     nextVisitDate: null,
     visits: [],
-    ppHistory: [],
-    updatedAt: new Date().toISOString()
+    ppHistory: []
   };
-  saveState(state, [key]);
+  state.callfile.updatedAt = new Date().toISOString();
+  saveState(state, true);
   return { state: state };
 }
 
@@ -363,24 +331,25 @@ function updateStore(oldKey, name, grade, postcode) {
     lastVisitDate: store.lastVisitDate,
     nextVisitDate: store.nextVisitDate,
     visits: store.visits,
-    ppHistory: store.ppHistory,
-    updatedAt: new Date().toISOString()
+    ppHistory: store.ppHistory
   };
 
-  // Renaming changes the key (name|postcode) — tombstone the old one rather than deleting it
-  // outright, so a stale cloud read can't resurrect it (see tombstone() above).
-  if (newKey !== oldKey) state.callfile.stores[oldKey] = tombstone();
+  // Renaming changes the key (name|postcode) — remove the old one, it's the same store under a
+  // new key, not two stores.
+  if (newKey !== oldKey) delete state.callfile.stores[oldKey];
   state.callfile.stores[newKey] = updated;
+  state.callfile.updatedAt = new Date().toISOString();
 
-  saveState(state, newKey !== oldKey ? [oldKey, newKey] : [oldKey]);
+  saveState(state, true);
   return { state: state, newKey: newKey };
 }
 
 function deleteStore(key) {
   const state = loadState();
   if (!getLiveStore(state.callfile.stores, key)) return state;
-  state.callfile.stores[key] = tombstone();
-  saveState(state, [key]);
+  delete state.callfile.stores[key];
+  state.callfile.updatedAt = new Date().toISOString();
+  saveState(state, true);
   return state;
 }
 
@@ -393,8 +362,8 @@ function savePPSnapshot(key, snapshot) {
   const history = (store.ppHistory || []).slice();
   history.unshift(snapshot);
   store.ppHistory = history.slice(0, 2);
-  store.updatedAt = new Date().toISOString();
-  saveState(state, [key]);
+  state.callfile.updatedAt = new Date().toISOString();
+  saveState(state, true);
   return state;
 }
 
@@ -416,8 +385,8 @@ function logVisit(key, dateStr, cadenceWeeks) {
   const next = new Date(dateStr);
   next.setDate(next.getDate() + cadenceWeeks * 7);
   store.nextVisitDate = next.toISOString().slice(0, 10);
-  store.updatedAt = new Date().toISOString();
-  saveState(state, [key]);
+  state.callfile.updatedAt = new Date().toISOString();
+  saveState(state, true);
   return state;
 }
 
@@ -428,22 +397,21 @@ function resetVisits(key) {
   store.visits = [];
   store.lastVisitDate = null;
   store.nextVisitDate = null;
-  store.updatedAt = new Date().toISOString();
-  saveState(state, [key]);
+  state.callfile.updatedAt = new Date().toISOString();
+  saveState(state, true);
   return state;
 }
 
 function resetAllVisits() {
   const state = loadState();
-  const keys = liveStoreKeys(state.callfile.stores);
-  keys.forEach(function (key) {
+  liveStoreKeys(state.callfile.stores).forEach(function (key) {
     const store = state.callfile.stores[key];
     store.visits = [];
     store.lastVisitDate = null;
     store.nextVisitDate = null;
-    store.updatedAt = new Date().toISOString();
   });
-  saveState(state, keys);
+  state.callfile.updatedAt = new Date().toISOString();
+  saveState(state, true);
   return state;
 }
 

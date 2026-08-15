@@ -62,22 +62,23 @@ function initCloudSync() {
   const auth = window.FirebaseAuth.auth;
 
   // prices/targetCounts are always pushed in full (accepted last-write-wins, see CLAUDE.md) —
-  // but callfile.stores is only ever included for the specific key(s) touchedStoreKeys names,
-  // written with {merge: true} so it only touches those keys on the server. A rep's account can
-  // be open on more than one device at once; without this, a save from a device holding a stale
-  // local copy of some OTHER store (e.g. just editing a price) would blindly overwrite that
-  // store's newer cloud data with its own outdated copy. Omitting touchedStoreKeys entirely (the
-  // non-callfile mutators) sends no callfile field at all, so it can never touch it on the server.
-  window.CloudSync.pushState = function (state, touchedStoreKeys) {
+  // callfile is only included when callfileChanged is true (the non-callfile mutators, e.g.
+  // setPrice, pass nothing, so a save from a device holding a stale local copy of the call file
+  // can't blindly overwrite the cloud's newer one just because it happened to save something
+  // unrelated). mergeFields (rather than a plain {merge: true}) is what makes the callfile write
+  // itself safe to send wholesale: it replaces the *entire* callfile field with what's given —
+  // including dropping any store key no longer present locally — while {merge: true}'s recursive
+  // deep-merge on nested maps would leave a locally-deleted store's key alive on the server.
+  window.CloudSync.pushState = function (state, callfileChanged) {
     const user = auth.currentUser;
     if (!user) return;
     const payload = { prices: state.prices, targetCounts: state.targetCounts };
-    if (touchedStoreKeys && touchedStoreKeys.length) {
-      const stores = {};
-      touchedStoreKeys.forEach(function (key) { stores[key] = state.callfile.stores[key]; });
-      payload.callfile = { fileName: state.callfile.fileName, uploadedAt: state.callfile.uploadedAt, stores: stores };
+    const fields = ["prices", "targetCounts"];
+    if (callfileChanged) {
+      payload.callfile = state.callfile;
+      fields.push("callfile");
     }
-    window.FirebaseDb.setDoc(window.FirebaseDb.doc(window.FirebaseDb.db, "users", user.uid), payload, { merge: true })
+    window.FirebaseDb.setDoc(window.FirebaseDb.doc(window.FirebaseDb.db, "users", user.uid), payload, { mergeFields: fields })
       .catch(function (err) { console.error("Cloud save failed:", err); });
   };
 
