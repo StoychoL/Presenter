@@ -285,14 +285,22 @@ function render() {
     missing.forEach(function (pc) { mapState.inFlightPostcodes.add(pc); });
     geocodeMissing(missing)
       .then(function (results) {
-        Object.assign(cache.entries, results);
-        saveGeocodeCache(cache);
+        // Re-read the cache fresh right before merging, rather than reusing the closured `cache`
+        // loaded at the top of this render() call — render() runs multiple times per page load
+        // (initial, post-hydration, onSnapshot echoes), and each one's fetch-then-save cycle can
+        // overlap. Saving the stale closured snapshot here would blindly overwrite whatever an
+        // overlapping cycle already wrote in the meantime, silently losing its newly-geocoded
+        // postcodes (this is what made a random subset of stores disappear from the map on every
+        // reload — not a network failure, a lost update between two concurrent cache saves).
+        const latestCache = loadGeocodeCache();
+        Object.assign(latestCache.entries, results);
+        saveGeocodeCache(latestCache);
         missing.forEach(function (pc) { mapState.inFlightPostcodes.delete(pc); });
         // Re-derive entries from current state rather than reusing the closured ones above —
         // an overlapping render() call (cloud hydration, onSnapshot) can resolve its own newer
         // paint before this fetch (kicked off by an earlier, possibly pre-hydration render())
         // finishes; repainting with stale closured data would silently overwrite that newer paint.
-        plotMarkers(collectStoreEntries(Storage.loadState()), cache);
+        plotMarkers(collectStoreEntries(Storage.loadState()), latestCache);
       })
       .catch(function (err) {
         missing.forEach(function (pc) { mapState.inFlightPostcodes.delete(pc); });
