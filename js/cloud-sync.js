@@ -58,6 +58,12 @@ function hydrateAndSubscribe(uid) {
   });
 }
 
+// Every push is chained onto this promise instead of being fired independently, so Firestore
+// always receives them in the same order they were locally initiated — see the note in
+// initCloudSync() below for why that matters (two unawaited writes can otherwise arrive at the
+// server out of order over patchy wifi, letting an older write silently clobber a newer one).
+let pushChain = Promise.resolve();
+
 function initCloudSync() {
   const auth = window.FirebaseAuth.auth;
 
@@ -69,6 +75,13 @@ function initCloudSync() {
   // itself safe to send wholesale: it replaces the *entire* callfile field with what's given —
   // including dropping any store key no longer present locally — while {merge: true}'s recursive
   // deep-merge on nested maps would leave a locally-deleted store's key alive on the server.
+  //
+  // Pushes are chained through pushChain rather than fired independently: a rep logging a
+  // Platinum store's 2nd visit seconds after the 1st fires two unawaited setDoc calls, and without
+  // this, a slow/patchy connection can let the 1st (older, 1-visit) write arrive at Firestore
+  // *after* the 2nd (newer, 2-visit) one, silently overwriting it — even though both are correctly
+  // timestamped, since the server just applies whichever write it receives last. Chaining ensures
+  // the 2nd write's network request isn't even sent until the 1st has finished.
   window.CloudSync.pushState = function (state, callfileChanged) {
     const user = auth.currentUser;
     if (!user) return;
@@ -78,8 +91,9 @@ function initCloudSync() {
       payload.callfile = state.callfile;
       fields.push("callfile");
     }
-    window.FirebaseDb.setDoc(window.FirebaseDb.doc(window.FirebaseDb.db, "users", user.uid), payload, { mergeFields: fields })
-      .catch(function (err) { console.error("Cloud save failed:", err); });
+    pushChain = pushChain.catch(function () {}).then(function () {
+      return window.FirebaseDb.setDoc(window.FirebaseDb.doc(window.FirebaseDb.db, "users", user.uid), payload, { mergeFields: fields });
+    }).catch(function (err) { console.error("Cloud save failed:", err); });
   };
 
   window.FirebaseAuth.onAuthStateChanged(auth, function (user) {
