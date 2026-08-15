@@ -61,11 +61,23 @@ function hydrateAndSubscribe(uid) {
 function initCloudSync() {
   const auth = window.FirebaseAuth.auth;
 
-  window.CloudSync.pushState = function (state) {
+  // prices/targetCounts are always pushed in full (accepted last-write-wins, see CLAUDE.md) —
+  // but callfile.stores is only ever included for the specific key(s) touchedStoreKeys names,
+  // written with {merge: true} so it only touches those keys on the server. A rep's account can
+  // be open on more than one device at once; without this, a save from a device holding a stale
+  // local copy of some OTHER store (e.g. just editing a price) would blindly overwrite that
+  // store's newer cloud data with its own outdated copy. Omitting touchedStoreKeys entirely (the
+  // non-callfile mutators) sends no callfile field at all, so it can never touch it on the server.
+  window.CloudSync.pushState = function (state, touchedStoreKeys) {
     const user = auth.currentUser;
     if (!user) return;
-    const slice = { prices: state.prices, targetCounts: state.targetCounts, callfile: state.callfile };
-    window.FirebaseDb.setDoc(window.FirebaseDb.doc(window.FirebaseDb.db, "users", user.uid), slice)
+    const payload = { prices: state.prices, targetCounts: state.targetCounts };
+    if (touchedStoreKeys && touchedStoreKeys.length) {
+      const stores = {};
+      touchedStoreKeys.forEach(function (key) { stores[key] = state.callfile.stores[key]; });
+      payload.callfile = { fileName: state.callfile.fileName, uploadedAt: state.callfile.uploadedAt, stores: stores };
+    }
+    window.FirebaseDb.setDoc(window.FirebaseDb.doc(window.FirebaseDb.db, "users", user.uid), payload, { merge: true })
       .catch(function (err) { console.error("Cloud save failed:", err); });
   };
 

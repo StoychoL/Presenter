@@ -288,7 +288,11 @@ function render() {
         Object.assign(cache.entries, results);
         saveGeocodeCache(cache);
         missing.forEach(function (pc) { mapState.inFlightPostcodes.delete(pc); });
-        plotMarkers(entries, cache); // re-plot now that more coordinates are known
+        // Re-derive entries from current state rather than reusing the closured ones above —
+        // an overlapping render() call (cloud hydration, onSnapshot) can resolve its own newer
+        // paint before this fetch (kicked off by an earlier, possibly pre-hydration render())
+        // finishes; repainting with stale closured data would silently overwrite that newer paint.
+        plotMarkers(collectStoreEntries(Storage.loadState()), cache);
       })
       .catch(function (err) {
         missing.forEach(function (pc) { mapState.inFlightPostcodes.delete(pc); });

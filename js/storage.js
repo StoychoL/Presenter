@@ -84,13 +84,20 @@ function loadState() {
   }
 }
 
-function saveState(state) {
+// touchedStoreKeys (optional): the callfile.stores key(s) this specific mutation actually changed,
+// e.g. logVisit(key) passes [key]. CloudSync.pushState uses it to push only those stores via a
+// Firestore merge write instead of the whole callfile — see js/cloud-sync.js for why: without it,
+// a second device with a stale local cache pushing for an unrelated reason (e.g. a price edit)
+// would blindly overwrite every other store's cloud data with whatever it has cached, including
+// stores it never touched. Mutators that don't touch callfile.stores (setPrice, toggleChecked,
+// etc.) simply omit this argument.
+function saveState(state, touchedStoreKeys) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   // Mirrors the persisted slice up to the signed-in rep's Firestore doc in the background — see
   // js/cloud-sync.js. Every mutation already funnels through this one function, so this is the
   // only place cloud sync needs to hook in; localStorage stays the synchronous source of truth
   // every render() reads from, cloud sync is purely a background mirror on top.
-  if (window.CloudSync) window.CloudSync.pushState(state);
+  if (window.CloudSync) window.CloudSync.pushState(state, touchedStoreKeys);
 }
 
 function hasSavedData() {
@@ -302,7 +309,7 @@ function importCallfile(fileName, rows) {
     uploadedAt: new Date().toISOString(),
     stores: next
   };
-  saveState(state);
+  saveState(state, Object.keys(next));
   return { state: state, duplicateCount: duplicateCount };
 }
 
@@ -330,7 +337,7 @@ function addStore(name, grade, postcode) {
     ppHistory: [],
     updatedAt: new Date().toISOString()
   };
-  saveState(state);
+  saveState(state, [key]);
   return { state: state };
 }
 
@@ -365,7 +372,7 @@ function updateStore(oldKey, name, grade, postcode) {
   if (newKey !== oldKey) state.callfile.stores[oldKey] = tombstone();
   state.callfile.stores[newKey] = updated;
 
-  saveState(state);
+  saveState(state, newKey !== oldKey ? [oldKey, newKey] : [oldKey]);
   return { state: state, newKey: newKey };
 }
 
@@ -373,7 +380,7 @@ function deleteStore(key) {
   const state = loadState();
   if (!getLiveStore(state.callfile.stores, key)) return state;
   state.callfile.stores[key] = tombstone();
-  saveState(state);
+  saveState(state, [key]);
   return state;
 }
 
@@ -387,7 +394,7 @@ function savePPSnapshot(key, snapshot) {
   history.unshift(snapshot);
   store.ppHistory = history.slice(0, 2);
   store.updatedAt = new Date().toISOString();
-  saveState(state);
+  saveState(state, [key]);
   return state;
 }
 
@@ -410,7 +417,7 @@ function logVisit(key, dateStr, cadenceWeeks) {
   next.setDate(next.getDate() + cadenceWeeks * 7);
   store.nextVisitDate = next.toISOString().slice(0, 10);
   store.updatedAt = new Date().toISOString();
-  saveState(state);
+  saveState(state, [key]);
   return state;
 }
 
@@ -422,20 +429,21 @@ function resetVisits(key) {
   store.lastVisitDate = null;
   store.nextVisitDate = null;
   store.updatedAt = new Date().toISOString();
-  saveState(state);
+  saveState(state, [key]);
   return state;
 }
 
 function resetAllVisits() {
   const state = loadState();
-  liveStoreKeys(state.callfile.stores).forEach(function (key) {
+  const keys = liveStoreKeys(state.callfile.stores);
+  keys.forEach(function (key) {
     const store = state.callfile.stores[key];
     store.visits = [];
     store.lastVisitDate = null;
     store.nextVisitDate = null;
     store.updatedAt = new Date().toISOString();
   });
-  saveState(state);
+  saveState(state, keys);
   return state;
 }
 
