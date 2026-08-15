@@ -147,9 +147,20 @@ function hydrateFromCloud(slice) {
   if (slice.prices) state.prices = slice.prices;
   if (slice.targetCounts) state.targetCounts = slice.targetCounts;
   if (slice.callfile) {
-    const localAt = state.callfile.updatedAt || "";
-    const cloudAt = slice.callfile.updatedAt || "";
-    if (cloudAt >= localAt) state.callfile = slice.callfile;
+    const localAt = state.callfile.updatedAt;
+    const cloudAt = slice.callfile.updatedAt;
+    // Every callfile saved before this whole-object model existed has no updatedAt at all. If
+    // neither side has one yet, there's nothing to compare — do NOT treat that as a tie in the
+    // cloud's favor (a bare "" >= "" comparison would make the cloud unconditionally win on every
+    // single hydration until some mutation finally stamps a real timestamp on either side). The
+    // one exception: a genuinely fresh device (nothing stored locally yet) has nothing to lose by
+    // adopting whatever the cloud has, stamped or not — that's the normal first-sync case.
+    const localHasStores = Object.keys(state.callfile.stores || {}).length > 0;
+    if (!localAt && !cloudAt) {
+      if (!localHasStores) state.callfile = slice.callfile;
+    } else if (!localAt || (cloudAt && cloudAt >= localAt)) {
+      state.callfile = slice.callfile;
+    }
   }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   return state;
