@@ -390,14 +390,21 @@ main {
 
 .grade-pill {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
   padding: 8px 12px;
   border-radius: 12px;
   background: var(--bg);
   border: 1px solid var(--border);
   flex: 1;
   min-width: 96px;
+}
+
+.grade-pill-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .grade-dot {
@@ -415,11 +422,6 @@ main {
   font-size: 12px;
   font-weight: 700;
   color: var(--ink-soft);
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .grade-pill-frac {

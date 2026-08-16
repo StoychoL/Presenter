@@ -139,8 +139,10 @@ function gradeBreakdownHtml(perGrade) {
         })();
     return (
       '<div class="grade-pill">' +
-        '<span class="grade-dot ' + gradeDotClass(grade) + '"></span>' +
-        '<span class="grade-pill-name">' + grade + "</span>" +
+        '<div class="grade-pill-top">' +
+          '<span class="grade-dot ' + gradeDotClass(grade) + '"></span>' +
+          '<span class="grade-pill-name">' + grade + "</span>" +
+        "</div>" +
         fracHtml +
       "</div>"
     );
