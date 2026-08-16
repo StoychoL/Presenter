@@ -58,6 +58,9 @@ function renderNav(activePage) {
   // Filled in once Firebase resolves the signed-in rep (see js/cloud-sync.js) — this header
   // renders before that's known, so it starts empty rather than waiting on auth.
   document.getElementById("rep-logout-btn").addEventListener("click", function () {
+    // Wipe this device's cached data as the rep signs out, so it can't linger — even momentarily —
+    // for whoever signs in next on a shared device. See js/storage.js's clearLocal().
+    if (window.Storage) window.Storage.clearLocal();
     if (window.FirebaseAuth) window.FirebaseAuth.signOut(window.FirebaseAuth.auth);
     closeMenu();
   });

@@ -23,9 +23,11 @@ function subscribeLive(ref) {
 }
 
 // First time this rep has ever signed in (no Firestore doc yet): if this device already has real
-// saved data, ask before adopting it as the new account's starting point — otherwise the account
-// starts from the same defaults a fresh install would use.
-function handleFirstLogin(ref) {
+// saved data — and, per hydrateAndSubscribe's owner check below, that data is either unowned
+// (legacy/never-tagged) or already this same account's — ask before adopting it as the new
+// account's starting point. Otherwise the account starts from the same defaults a fresh install
+// would use. uid is threaded through purely to stamp ownership once initialization succeeds.
+function handleFirstLogin(ref, uid) {
   const importIt = Storage.hasSavedData() && confirm(
     "This device has saved data (prices/call file) from before you signed in. Import it into your new account?"
   );
@@ -37,20 +39,29 @@ function handleFirstLogin(ref) {
   window.FirebaseDb.setDoc(ref, slice)
     .then(function () {
       Storage.hydrateFromCloud(slice);
+      Storage.setOwnerUid(uid);
       rerenderIfPossible();
     })
     .catch(function (err) { console.error("Could not initialize your account:", err); });
 }
 
 function hydrateAndSubscribe(uid) {
+  // This device's cached blob (if any) belongs to whichever uid last stamped it. A mismatch means
+  // it's a *different* rep's data — wipe it before anything below can read it as "this account's
+  // data", which is what let one rep's cache leak into another rep's brand-new account. No tag at
+  // all (a device this code has never run on yet) is left alone here on purpose — that's the
+  // legacy "adopt this device's pre-Firebase data" case handleFirstLogin still supports below.
+  if (Storage.getOwnerUid() && Storage.getOwnerUid() !== uid) Storage.clearLocal();
+
   const ref = window.FirebaseDb.doc(window.FirebaseDb.db, "users", uid);
 
   window.FirebaseDb.getDoc(ref).then(function (snap) {
     if (snap.exists()) {
       Storage.hydrateFromCloud(snap.data());
+      Storage.setOwnerUid(uid);
       rerenderIfPossible();
     } else {
-      handleFirstLogin(ref);
+      handleFirstLogin(ref, uid);
     }
     subscribeLive(ref);
   }).catch(function (err) {

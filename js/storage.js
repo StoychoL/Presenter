@@ -5,6 +5,7 @@
 // session data cleared by the Reset buttons.
 
 const STORAGE_KEY = "diageoPresenter";
+const OWNER_KEY = "diageoPresenterUid";
 const SCHEMA_VERSION = 5;
 
 function defaultState() {
@@ -107,6 +108,28 @@ function saveState(state, callfileChanged) {
 
 function hasSavedData() {
   return !!localStorage.getItem(STORAGE_KEY);
+}
+
+// Which signed-in account's data the cached blob above currently belongs to — the localStorage
+// key itself is device-level (see saveState's header comment), so this is what stops one rep's
+// cached prices/call file from being read as another rep's data on a shared device. No tag at
+// all (a device that's never been through this code path, e.g. mid-migration from before this
+// existed) is treated as "unknown owner", not "known to be foreign" — see cloud-sync.js.
+function getOwnerUid() {
+  return localStorage.getItem(OWNER_KEY);
+}
+
+function setOwnerUid(uid) {
+  localStorage.setItem(OWNER_KEY, uid);
+}
+
+// Wipes the device-level cache entirely — both the persisted slice and session state, unlike the
+// page-level Reset buttons which deliberately leave session state alone. Used when the cached
+// data turns out to belong to a different account (cloud-sync.js) and on explicit logout (nav.js),
+// so a shared device never shows one rep's data, even momentarily, to whoever's signed in next.
+function clearLocal() {
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(OWNER_KEY);
 }
 
 // The subset of state that's mirrored to Firestore — prices/targetCounts/callfile, exactly the
@@ -457,6 +480,9 @@ window.Storage = {
   resetAllVisits: resetAllVisits,
   savePPSnapshot: savePPSnapshot,
   hasSavedData: hasSavedData,
+  getOwnerUid: getOwnerUid,
+  setOwnerUid: setOwnerUid,
+  clearLocal: clearLocal,
   defaultPersistedSlice: defaultPersistedSlice,
   hydrateFromCloud: hydrateFromCloud
 };
