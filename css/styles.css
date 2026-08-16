@@ -416,6 +416,10 @@ main {
   font-weight: 700;
   color: var(--ink-soft);
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .grade-pill-frac {
