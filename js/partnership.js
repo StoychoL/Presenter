@@ -4,10 +4,13 @@
 
 var ppUi = { wasAbove90: false, zoomId: null, storePickerOpen: false };
 
+// All three tiers now share the same "Stock Diageo & Earn" summary graphic (formerly
+// images/PP/tier-1.png etc., one differently-branded poster per tier) — see js/pp-deck.js's
+// use of the same asset for the Partnership Program pitch deck.
 var HERO_IMAGES = {
-  tier1: "images/PP/tier-1.png",
-  tier2: "images/PP/tier-2.png",
-  tier3: "images/PP/tier-3.png"
+  tier1: "images/pp-deck-hero.jpg",
+  tier2: "images/pp-deck-hero.jpg",
+  tier3: "images/pp-deck-hero.jpg"
 };
 
 function escAttr(str) {

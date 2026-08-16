@@ -70,24 +70,32 @@ function weekStats(stores) {
 // Coverage this local month, overall and per grade. "Covered" reuses storeStatus()'s green
 // definition (visitsThisMonth >= CALLFILE_GRADE_CONFIG[grade].visitsRequired) — the exact rule
 // Call File already shows per store, just aggregated here.
+//
+// "Partial" (storeStatus() === "amber") is tracked separately as info only — it never adds to
+// coveredTotal/pct. In practice this only ever fires for Platinum stores (1 of their 2 required
+// visits done this month); Gold/Silver jump straight red -> green since they only need 1 visit.
 function monthCoverageStats(stores) {
   const perGrade = {};
   (window.CALLFILE_GRADES || []).forEach(function (g) { perGrade[g] = { covered: 0, total: 0 }; });
 
   let coveredTotal = 0;
+  let partialTotal = 0;
   let storeTotal = 0;
   Storage.liveStoreKeys(stores).forEach(function (key) {
     const store = stores[key];
     if (!perGrade[store.grade]) return;
     storeTotal++;
     perGrade[store.grade].total++;
-    if (storeStatus(store) === "green") {
+    const status = storeStatus(store);
+    if (status === "green") {
       coveredTotal++;
       perGrade[store.grade].covered++;
+    } else if (status === "amber") {
+      partialTotal++;
     }
   });
 
-  return { coveredTotal: coveredTotal, storeTotal: storeTotal, perGrade: perGrade };
+  return { coveredTotal: coveredTotal, partialTotal: partialTotal, storeTotal: storeTotal, perGrade: perGrade };
 }
 
 function weekPanelBodyHtml(wk) {
@@ -144,11 +152,17 @@ function monthPanelBodyHtml(mo) {
     return '<p class="empty-note">Upload a call file to see coverage here.</p>';
   }
   const pct = Math.round((mo.coveredTotal / mo.storeTotal) * 100);
+  const partialHtml = mo.partialTotal > 0
+    ? '<p class="coverage-partial"><span class="dot amber"></span>' +
+        mo.partialTotal + (mo.partialTotal === 1 ? " store" : " stores") +
+        " partially visited — not counted toward coverage</p>"
+    : "";
   return (
     '<div class="coverage-row">' +
       '<span class="coverage-pct">' + pct + "%</span>" +
       '<span class="coverage-copy">' + mo.coveredTotal + " of " + mo.storeTotal + " stores compliant</span>" +
     "</div>" +
+    partialHtml +
     '<div class="coverage-bar"><div class="coverage-bar-fill" style="width:' + pct + '%"></div></div>' +
     '<div class="grade-breakdown">' + gradeBreakdownHtml(mo.perGrade) + "</div>"
   );
