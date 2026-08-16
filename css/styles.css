@@ -391,7 +391,8 @@ main {
 .grade-pill {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  text-align: center;
   gap: 6px;
   padding: 8px 12px;
   border-radius: 12px;
