@@ -12,7 +12,7 @@
 const WEEKLY_TARGET = 60;
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const WEEKS_BACK = 12; // plus the current week = 13 tabs, ~3 months
+const WEEKS_BACK = 12; // how far the back arrow can go, ~3 months
 
 // Ephemeral UI-only selection (which past week the "This Week" panel shows) — never persisted,
 // so the dashboard always opens back on the current week on a fresh load, same as every other
@@ -106,31 +106,6 @@ function monthCoverageStats(stores) {
   return { coveredTotal: coveredTotal, partialTotal: partialTotal, storeTotal: storeTotal, perGrade: perGrade };
 }
 
-function weekTabsHtml(selected) {
-  const today = localToday();
-  const buttons = [];
-  for (let i = 0; i <= WEEKS_BACK; i++) {
-    let label;
-    if (i === 0) {
-      label = "This Week";
-    } else if (i === 1) {
-      label = "Last Week";
-    } else {
-      const monday = mondayOfWeek(today);
-      monday.setDate(monday.getDate() - i * 7);
-      const friday = new Date(monday);
-      friday.setDate(monday.getDate() + 4);
-      label = formatWeekRange(monday, friday);
-    }
-    buttons.push(
-      '<button class="week-tab' + (i === selected ? " active" : "") + '" data-offset="' + i + '">' +
-        label +
-      "</button>"
-    );
-  }
-  return buttons.join("");
-}
-
 function weekPanelBodyHtml(wk) {
   const pct = Math.min(100, Math.round((wk.total / WEEKLY_TARGET) * 100));
   const strip = WEEKDAY_LABELS.map(function (label, i) {
@@ -207,11 +182,11 @@ function render() {
   const state = Storage.loadState();
   const stores = state.callfile.stores || {};
 
-  document.getElementById("week-tabs").innerHTML = weekTabsHtml(selectedWeeksAgo);
-
   const wk = weekStats(stores, selectedWeeksAgo);
   document.getElementById("week-range").textContent = formatWeekRange(wk.monday, wk.friday);
   document.getElementById("week-panel-body").innerHTML = weekPanelBodyHtml(wk);
+  document.getElementById("week-prev").disabled = selectedWeeksAgo >= WEEKS_BACK;
+  document.getElementById("week-next").disabled = selectedWeeksAgo === 0;
 
   const mo = monthCoverageStats(stores);
   document.getElementById("month-panel-body").innerHTML = monthPanelBodyHtml(mo);
@@ -219,10 +194,12 @@ function render() {
 window.render = render;
 
 document.addEventListener("DOMContentLoaded", function () {
-  document.getElementById("week-tabs").addEventListener("click", function (e) {
-    const btn = e.target.closest("button[data-offset]");
-    if (!btn) return;
-    selectedWeeksAgo = Number(btn.dataset.offset);
+  document.getElementById("week-prev").addEventListener("click", function () {
+    selectedWeeksAgo = Math.min(WEEKS_BACK, selectedWeeksAgo + 1);
+    render();
+  });
+  document.getElementById("week-next").addEventListener("click", function () {
+    selectedWeeksAgo = Math.max(0, selectedWeeksAgo - 1);
     render();
   });
   render();
