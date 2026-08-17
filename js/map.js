@@ -13,8 +13,17 @@ const mapState = {
                                  // concurrent render() calls firing overlapping requests
   statusColors: null,    // resolved once from CSS custom properties (see resolveStatusColors)
   userLocationLayer: null, // L.layerGroup for the "you are here" dot + accuracy halo
-  watchId: null           // navigator.geolocation.watchPosition id, guards against double-starting
+  watchId: null,           // navigator.geolocation.watchPosition id, guards against double-starting
+  lastUserLatLng: null,    // {lat, lng} from the most recent geolocation fix, for the locate button
+  markersByKey: {},        // store key -> its current L.circleMarker, rebuilt each plotMarkers() call
+  openPopupKey: null        // store key whose popup was last opened, so it can be reopened after a
+                             // logVisit-triggered marker rebuild (see reopenPopupIfNeeded)
 };
+
+// Session-only UI state (not persisted): which store's "Log a visit" date-picker modal is open,
+// and which store's saved-range review modal is open (rangeIndex picks which of the up to 2 saved
+// snapshots is shown). Mirrors callfileUi in js/callfile.js.
+const mapUi = { logKey: null, rangeKey: null, rangeIndex: 0 };
 
 const USER_LOCATION_COLOR = "#1a73e8"; // distinct from the red/amber/green status palette
 const PLATINUM_RING_COLOR = "#1a1a1a";
@@ -35,6 +44,12 @@ function formatDateShort(iso) {
   if (!iso) return "—";
   const d = new Date(iso + "T00:00:00");
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+}
+
+function formatDate(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 function normalizePostcode(pc) {
@@ -135,6 +150,7 @@ function ensureMap() {
 function onLocationUpdate(pos) {
   const lat = pos.coords.latitude;
   const lng = pos.coords.longitude;
+  mapState.lastUserLatLng = { lat: lat, lng: lng };
   mapState.userLocationLayer.clearLayers();
   L.circle([lat, lng], {
     radius: pos.coords.accuracy || 0,
@@ -165,7 +181,35 @@ function initLiveLocation() {
   });
 }
 
-function popupHtml(store, status) {
+// "Locate me" button: pans/zooms to the last known fix from the background watchPosition above.
+// If that hasn't resolved yet (fresh page load, slow GPS fix), falls back to a one-off
+// getCurrentPosition() rather than introducing a second geolocation code path.
+function locateMe() {
+  if (mapState.lastUserLatLng) {
+    mapState.leaflet.setView([mapState.lastUserLatLng.lat, mapState.lastUserLatLng.lng], 15);
+    return;
+  }
+  if (!navigator.geolocation) {
+    alert("Location isn't available on this device/browser.");
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    function (pos) {
+      onLocationUpdate(pos);
+      mapState.leaflet.setView([pos.coords.latitude, pos.coords.longitude], 15);
+    },
+    function (err) {
+      alert("Couldn't get your location: " + (err && err.message ? err.message : "permission denied or unavailable."));
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+function popupHtml(store, status, key) {
+  const history = store.ppHistory || [];
+  const rangeBtn = history.length > 0
+    ? '<button class="btn small secondary" data-action="range" data-key="' + escAttr(key) + '">Range</button>'
+    : "";
   return (
     '<div class="map-popup">' +
       '<div class="map-popup-name">' + escAttr(store.name) + "</div>" +
@@ -174,8 +218,109 @@ function popupHtml(store, status) {
       '<div class="map-popup-row">' + escAttr(store.postcode) + "</div>" +
       '<div class="map-popup-row">Last visit: ' + formatDateShort(store.lastVisitDate) + "</div>" +
       '<div class="map-popup-row">Next visit: ' + formatDateShort(store.nextVisitDate) + "</div>" +
+      '<div class="map-popup-actions">' +
+        rangeBtn +
+        '<button class="btn small" data-action="log" data-key="' + escAttr(key) + '">Log visit</button>' +
+      "</div>" +
     "</div>"
   );
+}
+
+// Read-only equivalent of partnership.js's tileHtml / callfile.js's snapshotTileHtml — no click
+// handler, just a fixed record of what was ticked at the time the snapshot was saved.
+function snapshotTileHtml(id, checked) {
+  const product = window.CATALOG[id];
+  if (!product) return "";
+  return (
+    '<div class="tile pp-tile">' +
+      '<img src="' + product.image + '" alt="' + escAttr(product.name) + '" />' +
+      '<div class="tick-row' + (checked ? " checked" : "") + '"><span>' + (checked ? "✓ In stock" : "Not stocked") + "</span></div>" +
+    "</div>"
+  );
+}
+
+function snapshotSectionsHtml(tierKey, checkedIds) {
+  const tier = window.PP_LAYOUT[tierKey];
+  if (!tier) return "";
+  const checkedSet = new Set(checkedIds);
+  return tier.sections.map(function (section) {
+    const tiles = section.items.map(function (id) { return snapshotTileHtml(id, checkedSet.has(id)); }).join("");
+    return '<section class="category"><h3>' + escAttr(section.label) + '</h3><div class="tile-grid">' + tiles + "</div></section>";
+  }).join("");
+}
+
+function openVisitModal(key) {
+  mapUi.logKey = key;
+  renderVisitModal(Storage.loadState());
+  const dateInput = document.getElementById("visit-date-input");
+  dateInput.max = todayISO();
+  dateInput.value = todayISO();
+}
+
+function closeVisitModal() {
+  mapUi.logKey = null;
+  renderVisitModal(Storage.loadState());
+}
+
+function renderVisitModal(state) {
+  const modal = document.getElementById("visit-modal");
+  const store = mapUi.logKey ? Storage.getLiveStore(state.callfile.stores, mapUi.logKey) : null;
+  if (!store) {
+    modal.classList.add("hidden");
+    return;
+  }
+  document.getElementById("visit-modal-store").textContent =
+    store.name + (store.postcode ? " · " + store.postcode : "");
+  modal.classList.remove("hidden");
+}
+
+function openRangeModal(key) {
+  mapUi.rangeKey = key;
+  mapUi.rangeIndex = 0;
+  renderRangeModal(Storage.loadState());
+}
+
+function closeRangeModal() {
+  mapUi.rangeKey = null;
+  renderRangeModal(Storage.loadState());
+}
+
+function renderRangeModal(state) {
+  const modal = document.getElementById("range-modal");
+  const store = mapUi.rangeKey ? Storage.getLiveStore(state.callfile.stores, mapUi.rangeKey) : null;
+  const history = store ? (store.ppHistory || []) : [];
+  if (!store || history.length === 0) {
+    modal.classList.add("hidden");
+    return;
+  }
+  const index = Math.min(mapUi.rangeIndex, history.length - 1);
+  const snapshot = history[index];
+  const tier = window.PP_LAYOUT[snapshot.tierKey];
+
+  document.getElementById("range-modal-store").textContent = store.name;
+
+  document.getElementById("range-snapshot-tabs").innerHTML = history.map(function (snap, i) {
+    return '<button type="button" class="' + (i === index ? "active" : "") + '" data-action="range-tab" data-index="' + i + '">' +
+      formatDateShort(snap.date) + "</button>";
+  }).join("");
+
+  const unlockedTag = snapshot.unlocked ? ' <span class="core-status complete">Unlocked</span>' : "";
+  document.getElementById("range-snapshot-detail").innerHTML =
+    '<p class="range-snapshot-summary">' + escAttr(tier.label) + " &middot; " + formatDate(snapshot.date) + " &middot; " +
+      snapshot.checkedCount + "/" + snapshot.target + " (" + snapshot.pct + "%)" + unlockedTag +
+    "</p>" +
+    snapshotSectionsHtml(snapshot.tierKey, snapshot.checkedIds);
+
+  modal.classList.remove("hidden");
+}
+
+// Reopens the popup for the store the rep was just looking at, after a logVisit-triggered
+// render() has cleared+rebuilt every marker (see plotMarkers). Deliberately only called from that
+// one flow, not from render() itself, so an unrelated background render() (cloud hydration,
+// onSnapshot, geocode resolution) never uninvitedly pops a popup back open.
+function reopenPopupIfNeeded() {
+  const marker = mapState.openPopupKey ? mapState.markersByKey[mapState.openPopupKey] : null;
+  if (marker) marker.openPopup();
 }
 
 // postcodes.io geocodes to a postcode's centroid, not an exact address — so stores that share a
@@ -206,6 +351,7 @@ function offsetForIndex(index, total, baseLat) {
 
 function plotMarkers(entries, cache) {
   mapState.markerLayer.clearLayers();
+  mapState.markersByKey = {};
   const bounds = [];
   const unplacedEntries = [];
   const placeable = [];
@@ -242,9 +388,23 @@ function plotMarkers(entries, cache) {
       color: isPlatinum ? PLATINUM_RING_COLOR : "#fff",
       fillColor: mapState.statusColors[status],
       fillOpacity: 0.95
-    }).bindPopup(popupHtml(e.store, status));
+    }).bindPopup(popupHtml(e.store, status, e.key));
+
+    marker.on("popupopen", function () {
+      mapState.openPopupKey = e.key;
+      const popupEl = marker.getPopup().getElement();
+      // Assignment (not addEventListener) so a marker whose popup is closed and reopened without
+      // an intervening render() doesn't accumulate duplicate listeners on the same DOM node.
+      popupEl.onclick = function (evt) {
+        const logBtn = evt.target.closest('button[data-action="log"]');
+        if (logBtn) { openVisitModal(logBtn.dataset.key); return; }
+        const rangeBtn = evt.target.closest('button[data-action="range"]');
+        if (rangeBtn) openRangeModal(rangeBtn.dataset.key);
+      };
+    });
 
     marker.addTo(mapState.markerLayer);
+    mapState.markersByKey[e.key] = marker;
     bounds.push([item.plotLat, item.plotLng]);
   });
 
@@ -360,4 +520,49 @@ function render() {
   }
 }
 
-document.addEventListener("DOMContentLoaded", render);
+document.addEventListener("DOMContentLoaded", function () {
+  render();
+
+  document.getElementById("locate-btn").addEventListener("click", locateMe);
+
+  document.getElementById("visit-modal-close").addEventListener("click", closeVisitModal);
+  document.getElementById("visit-cancel-btn").addEventListener("click", closeVisitModal);
+
+  document.getElementById("visit-modal").addEventListener("click", function (e) {
+    if (e.target.id === "visit-modal") closeVisitModal();
+  });
+
+  document.getElementById("visit-confirm-btn").addEventListener("click", function () {
+    const key = mapUi.logKey;
+    if (!key) return;
+    const dateVal = document.getElementById("visit-date-input").value;
+    if (!dateVal) { alert("Pick a date first."); return; }
+    const state = Storage.loadState();
+    const store = Storage.getLiveStore(state.callfile.stores, key);
+    if (!store) { closeVisitModal(); return; }
+    const cfg = window.CALLFILE_GRADE_CONFIG[store.grade] || { cadenceWeeks: 4 };
+    Storage.logVisit(key, dateVal, cfg.cadenceWeeks);
+    mapUi.logKey = null;
+    renderVisitModal(Storage.loadState());
+    render();
+    reopenPopupIfNeeded();
+  });
+
+  document.getElementById("range-modal-close").addEventListener("click", closeRangeModal);
+
+  document.getElementById("range-modal").addEventListener("click", function (e) {
+    if (e.target.id === "range-modal") closeRangeModal();
+  });
+
+  document.getElementById("range-snapshot-tabs").addEventListener("click", function (e) {
+    const btn = e.target.closest('button[data-action="range-tab"]');
+    if (!btn) return;
+    mapUi.rangeIndex = parseInt(btn.dataset.index, 10) || 0;
+    renderRangeModal(Storage.loadState());
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && mapUi.logKey) closeVisitModal();
+    if (e.key === "Escape" && mapUi.rangeKey) closeRangeModal();
+  });
+});

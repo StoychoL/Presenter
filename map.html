@@ -28,11 +28,43 @@
 
     <div id="map-container"></div>
 
+    <button type="button" class="locate-btn" id="locate-btn" aria-label="Go to my location">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path>
+      </svg>
+    </button>
+
     <p class="empty-note hidden" id="map-empty"></p>
   </main>
 
+  <div class="modal-backdrop hidden" id="visit-modal">
+    <div class="modal-card modal-card-narrow">
+      <button class="modal-close" id="visit-modal-close" aria-label="Close">&times;</button>
+      <h2>Log a visit</h2>
+      <p class="modal-store-name" id="visit-modal-store"></p>
+      <label class="field-label" for="visit-date-input">Visit date</label>
+      <input type="date" id="visit-date-input" class="date-input" />
+      <div class="modal-actions">
+        <button class="btn secondary" id="visit-cancel-btn" type="button">Cancel</button>
+        <button class="btn" id="visit-confirm-btn" type="button">Log visit</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="range-modal">
+    <div class="modal-card modal-card-narrow modal-card-wide">
+      <button class="modal-close" id="range-modal-close" aria-label="Close">&times;</button>
+      <h2 id="range-modal-store"></h2>
+      <div class="range-snapshot-tabs" id="range-snapshot-tabs"></div>
+      <div id="range-snapshot-detail"></div>
+    </div>
+  </div>
+
   <script type="module" src="js/firebase-config.js"></script>
   <script src="js/vendor/leaflet/leaflet.js"></script>
+  <script src="js/catalog.js"></script>
+  <script src="js/layout-pp.js"></script>
   <script src="js/layout-callfile.js"></script>
   <script src="js/callfile-status.js"></script>
   <script src="js/nav.js"></script>

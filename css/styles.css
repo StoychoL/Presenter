@@ -1803,3 +1803,26 @@ main.map-page {
 .status-pill.status-red-pill { background: rgba(198, 40, 40, 0.12); color: var(--bad); }
 .status-pill.status-amber-pill { background: rgba(217, 140, 31, 0.14); color: var(--warn); }
 .status-pill.status-green-pill { background: rgba(31, 138, 76, 0.12); color: var(--good); }
+
+.map-popup-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.locate-btn {
+  position: fixed;
+  right: 16px;
+  bottom: max(16px, calc(env(safe-area-inset-bottom) + 16px));
+  z-index: 1000;
+  width: var(--tap);
+  height: var(--tap);
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
