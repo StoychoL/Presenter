@@ -1054,6 +1054,19 @@ main {
 .status-amber .status-pill { background: rgba(217, 140, 31, 0.14); color: var(--warn); }
 .status-green .status-pill { background: rgba(31, 138, 76, 0.12); color: var(--good); }
 
+.secondary-badge {
+  display: inline-block;
+  flex: none;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: rgba(201, 162, 75, 0.16);
+  color: var(--gold);
+  margin-left: 6px;
+}
+
 .btn.small {
   flex: none;
   min-height: 34px;

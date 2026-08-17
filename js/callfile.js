@@ -73,6 +73,7 @@ function storeRowHtml(key, store) {
     '<div class="store-card status-' + status + '">' +
       '<div class="store-row-top">' +
         '<span class="store-name">' + escAttr(store.name) + "</span>" +
+        (store.secondary ? '<span class="secondary-badge">Secondary</span>' : "") +
         '<span class="status-pill">' + statusLabel(status) + "</span>" +
       "</div>" +
       '<div class="store-row-bottom">' +
@@ -292,8 +293,11 @@ function render() {
   const cf = state.callfile;
   const storeCount = Storage.liveStoreKeys(cf.stores).length;
 
-  document.getElementById("callfile-meta").textContent = cf.fileName
-    ? storeCount + " stores loaded from " + cf.fileName
+  const metaParts = [];
+  if (cf.fileName) metaParts.push(storeCount + " stores loaded from " + cf.fileName);
+  if (cf.secondaryFileName) metaParts.push("+ secondary territory from " + cf.secondaryFileName);
+  document.getElementById("callfile-meta").textContent = metaParts.length
+    ? metaParts.join(" ")
     : "No call file uploaded yet.";
 
   const query = (document.getElementById("callfile-search").value || "").trim().toLowerCase();
@@ -369,6 +373,43 @@ document.addEventListener("DOMContentLoaded", function () {
           const storeCount = Storage.liveStoreKeys(result.state.callfile.stores).length;
           alert("Loaded " + storeCount + " stores. " + notes.join("; ") + ".");
         }
+      } catch (err) {
+        alert("Could not read that file: " + err.message);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+
+  // Additive upload for temporarily covering a colleague's territory — merged into the same
+  // stores map (Storage.importSecondaryCallfile) rather than replacing the rep's own call file,
+  // and tagged `secondary: true` so Dashboard's compliance panels exclude them while Call
+  // File/Map/Partnership keep showing them normally. Always confirms via alert, unlike the
+  // primary upload, so it's unambiguous the rows landed as a secondary territory.
+  document.getElementById("callfile-secondary-input").addEventListener("change", function (e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (evt) {
+      try {
+        const data = new Uint8Array(evt.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const parsed = parseWorkbook(workbook);
+        if (!parsed.rows.length) {
+          alert("No usable rows found — expected OUTLETNAME / OUTLETGRADE / POSTCODE columns.");
+          return;
+        }
+        const result = Storage.importSecondaryCallfile(file.name, parsed.rows);
+        render();
+        const notes = [];
+        if (parsed.skipped) notes.push(parsed.skipped + " row(s) skipped (missing name or unrecognized grade)");
+        if (result.duplicateCount) notes.push(result.duplicateCount + " duplicate row(s) collapsed to one store each");
+        if (result.skippedPrimaryCollision) notes.push(result.skippedPrimaryCollision + " row(s) skipped (already in your primary call file)");
+        const secondaryCount = Storage.liveStoreKeys(result.state.callfile.stores).filter(function (key) {
+          return result.state.callfile.stores[key].secondary;
+        }).length;
+        alert("Loaded " + secondaryCount + " stores from secondary territory (" + file.name + ")." + (notes.length ? " " + notes.join("; ") + "." : ""));
       } catch (err) {
         alert("Could not read that file: " + err.message);
       }

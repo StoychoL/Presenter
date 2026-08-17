@@ -64,6 +64,7 @@ function weekStats(stores, weeksAgo) {
 
   const counts = [0, 0, 0, 0, 0];
   Storage.liveStoreKeys(stores).forEach(function (key) {
+    if (stores[key].secondary) return;
     stores[key].visits.forEach(function (dateStr) {
       const visitDate = parseLocalDate(dateStr);
       const dayIdx = weekDates.findIndex(function (d) { return sameDay(d, visitDate); });
@@ -91,6 +92,7 @@ function monthCoverageStats(stores) {
   let storeTotal = 0;
   Storage.liveStoreKeys(stores).forEach(function (key) {
     const store = stores[key];
+    if (store.secondary) return;
     if (!perGrade[store.grade]) return;
     storeTotal++;
     perGrade[store.grade].total++;

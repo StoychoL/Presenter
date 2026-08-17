@@ -6,7 +6,7 @@
 
 const STORAGE_KEY = "diageoPresenter";
 const OWNER_KEY = "diageoPresenterUid";
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 function defaultState() {
   const prices = {};
@@ -35,6 +35,8 @@ function defaultState() {
     callfile: {
       fileName: null,
       uploadedAt: null,
+      secondaryFileName: null,
+      secondaryUploadedAt: null,
       updatedAt: null,
       stores: {}
     },
@@ -285,16 +287,32 @@ function storeKey(name, postcode) {
 // in the file wins. There's no DIAGEOID to tell a true duplicate apart from two different accounts
 // that coincidentally share a name+postcode, so this is a deliberate simplification: the caller is
 // told how many rows collapsed (duplicateCount) so it isn't fully silent.
-function importCallfile(fileName, rows) {
-  const state = loadState();
-  const existing = state.callfile.stores;
+//
+// Shared by importCallfile (opts.secondary = false) and importSecondaryCallfile (true). Each
+// upload only replaces stores tagged with its own `secondary` value — stores from the *other*
+// tier are carried forward untouched first, which is what lets a rep re-upload their normal call
+// file without losing a temporarily-covered colleague's stores, and vice versa. A secondary row
+// that collides (same name|postcode key) with an existing PRIMARY store is skipped outright —
+// primary always wins — and counted in skippedPrimaryCollision so the caller can report it.
+function mergeRows(existing, rows, opts) {
+  const secondary = !!opts.secondary;
   const next = {};
   let duplicateCount = 0;
+  let skippedPrimaryCollision = 0;
+
+  Object.keys(existing).forEach(function (key) {
+    const store = existing[key];
+    if (!!store.secondary !== secondary) next[key] = store;
+  });
 
   rows.forEach(function (row) {
     const key = storeKey(row.name, row.postcode);
     if (!key.replace("|", "")) return;
-    if (next[key]) duplicateCount++;
+    if (secondary && next[key] && !next[key].secondary) {
+      skippedPrimaryCollision++;
+      return;
+    }
+    if (next[key] && !!next[key].secondary === secondary) duplicateCount++;
     const prior = getLiveStore(existing, key);
     next[key] = {
       name: row.name,
@@ -303,21 +321,43 @@ function importCallfile(fileName, rows) {
       lastVisitDate: prior ? prior.lastVisitDate : null,
       nextVisitDate: prior ? prior.nextVisitDate : null,
       visits: prior ? prior.visits.slice() : [],
-      ppHistory: prior && prior.ppHistory ? prior.ppHistory.slice() : []
+      ppHistory: prior && prior.ppHistory ? prior.ppHistory.slice() : [],
+      secondary: secondary
     };
   });
 
-  // A store that was present before this upload but isn't in the new file is simply dropped —
-  // no separate tombstone needed under whole-callfile last-write-wins (see hydrateFromCloud).
+  // A store that was present before this upload, tagged for this same tier, but isn't in the new
+  // file is simply dropped — no separate tombstone needed under whole-callfile last-write-wins
+  // (see hydrateFromCloud).
 
-  state.callfile = {
-    fileName: fileName,
-    uploadedAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    stores: next
-  };
+  return { next: next, duplicateCount: duplicateCount, skippedPrimaryCollision: skippedPrimaryCollision };
+}
+
+function importCallfile(fileName, rows) {
+  const state = loadState();
+  const result = mergeRows(state.callfile.stores, rows, { secondary: false });
+  state.callfile.fileName = fileName;
+  state.callfile.uploadedAt = new Date().toISOString();
+  state.callfile.updatedAt = new Date().toISOString();
+  state.callfile.stores = result.next;
   saveState(state, true);
-  return { state: state, duplicateCount: duplicateCount };
+  return { state: state, duplicateCount: result.duplicateCount };
+}
+
+// A rep temporarily covering a colleague's territory uploads that colleague's call file here
+// instead — it's merged in additively (see mergeRows above) rather than replacing the rep's own
+// call file, and every store it adds is tagged `secondary: true` so js/home.js's Dashboard panels
+// can exclude it from the rep's own compliance stats while Call File/Map/Partnership keep showing
+// it normally.
+function importSecondaryCallfile(fileName, rows) {
+  const state = loadState();
+  const result = mergeRows(state.callfile.stores, rows, { secondary: true });
+  state.callfile.secondaryFileName = fileName;
+  state.callfile.secondaryUploadedAt = new Date().toISOString();
+  state.callfile.updatedAt = new Date().toISOString();
+  state.callfile.stores = result.next;
+  saveState(state, true);
+  return { state: state, duplicateCount: result.duplicateCount, skippedPrimaryCollision: result.skippedPrimaryCollision };
 }
 
 // Adding/editing a store via the Add/Edit modal (as opposed to importCallfile's bulk
@@ -341,7 +381,8 @@ function addStore(name, grade, postcode) {
     lastVisitDate: null,
     nextVisitDate: null,
     visits: [],
-    ppHistory: []
+    ppHistory: [],
+    secondary: false
   };
   state.callfile.updatedAt = new Date().toISOString();
   saveState(state, true);
@@ -370,7 +411,8 @@ function updateStore(oldKey, name, grade, postcode) {
     lastVisitDate: store.lastVisitDate,
     nextVisitDate: store.nextVisitDate,
     visits: store.visits,
-    ppHistory: store.ppHistory
+    ppHistory: store.ppHistory,
+    secondary: store.secondary
   };
 
   // Renaming changes the key (name|postcode) — remove the old one, it's the same store under a
@@ -471,6 +513,7 @@ window.Storage = {
   liveStoreKeys: liveStoreKeys,
   getLiveStore: getLiveStore,
   importCallfile: importCallfile,
+  importSecondaryCallfile: importSecondaryCallfile,
   addStore: addStore,
   updateStore: updateStore,
   deleteStore: deleteStore,

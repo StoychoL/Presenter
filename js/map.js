@@ -214,7 +214,8 @@ function popupHtml(store, status, key) {
     '<div class="map-popup">' +
       '<div class="map-popup-name">' + escAttr(store.name) + "</div>" +
       '<div class="map-popup-row">' + escAttr(store.grade) + " &middot; " +
-        '<span class="status-pill status-' + status + '-pill">' + statusLabel(status) + "</span></div>" +
+        '<span class="status-pill status-' + status + '-pill">' + statusLabel(status) + "</span>" +
+        (store.secondary ? ' <span class="secondary-badge">Secondary</span>' : "") + "</div>" +
       '<div class="map-popup-row">' + escAttr(store.postcode) + "</div>" +
       '<div class="map-popup-row">Last visit: ' + formatDateShort(store.lastVisitDate) + "</div>" +
       '<div class="map-popup-row">Next visit: ' + formatDateShort(store.nextVisitDate) + "</div>" +
