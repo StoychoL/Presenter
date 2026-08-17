@@ -50,6 +50,9 @@ function formatWeekRange(monday, friday) {
 
 // Mon-Fri visit counts for the local week `weeksAgo` weeks before the current one (0 = this
 // week), plus which column (if any) is today — only ever set when viewing the current week.
+// Unlike monthCoverageStats below, this counts secondary-territory stores too — a visit made
+// while covering a colleague's territory is still real activity that week, even though it
+// shouldn't count toward the rep's own monthly compliance.
 function weekStats(stores, weeksAgo) {
   const today = localToday();
   const monday = mondayOfWeek(today);
@@ -64,7 +67,6 @@ function weekStats(stores, weeksAgo) {
 
   const counts = [0, 0, 0, 0, 0];
   Storage.liveStoreKeys(stores).forEach(function (key) {
-    if (stores[key].secondary) return;
     stores[key].visits.forEach(function (dateStr) {
       const visitDate = parseLocalDate(dateStr);
       const dayIdx = weekDates.findIndex(function (d) { return sameDay(d, visitDate); });
