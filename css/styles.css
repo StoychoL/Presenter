@@ -942,6 +942,7 @@ main {
   box-shadow: 0 4px 14px rgba(0,0,0,0.18);
 }
 
+.grade-tab-all { background: #3a3f47; }
 .grade-tab-platinum { background: #5b6472; }
 .grade-tab-gold { background: var(--gold); }
 .grade-tab-silver { background: #9aa1a8; }
@@ -1140,6 +1141,28 @@ main {
   cursor: default;
 }
 
+#range-snapshot-detail .tick-row[data-action="range-toggle"] {
+  cursor: pointer;
+}
+
+.range-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+
+.range-modal-actions .btn.small {
+  flex: none;
+}
+
+/* Tier picker for starting a from-scratch range — reuses .tier-tabs' pill-button look, just
+   without the page-header padding that class assumes elsewhere. */
+.range-tier-picker {
+  padding: 0;
+  margin-bottom: 4px;
+}
+
 /* ---------- Product zoom modal (Partnership Program) ---------- */
 .modal-backdrop {
   position: fixed;
@@ -1258,6 +1281,26 @@ main {
   margin: 24px 16px;
   color: var(--ink-soft);
   text-align: center;
+}
+
+/* ---------- Cash & Carry Form ---------- */
+.field-hint {
+  margin: -10px 0 10px;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+#cc-other-wrap.hidden { display: none; }
+
+.cc-product-row {
+  margin-bottom: 14px;
+}
+
+.cc-product-name {
+  display: block;
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
 }
 
 /* ---------- Login / signup ---------- */

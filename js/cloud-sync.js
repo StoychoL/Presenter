@@ -33,7 +33,7 @@ function handleFirstLogin(ref, uid) {
   );
   const local = Storage.loadState();
   const slice = importIt
-    ? { prices: local.prices, targetCounts: local.targetCounts, callfile: local.callfile }
+    ? { prices: local.prices, targetCounts: local.targetCounts, callfile: local.callfile, cashCarry: local.cashCarry }
     : Storage.defaultPersistedSlice();
 
   window.FirebaseDb.setDoc(ref, slice)
@@ -96,8 +96,11 @@ function initCloudSync() {
   window.CloudSync.pushState = function (state, callfileChanged) {
     const user = auth.currentUser;
     if (!user) return;
-    const payload = { prices: state.prices, targetCounts: state.targetCounts };
-    const fields = ["prices", "targetCounts"];
+    // cashCarry is pushed unconditionally every save, same tier as prices/targetCounts — unlike
+    // callfile's callfileChanged gate, a single flat always-fully-overwritten draft has no
+    // multi-writer race worth guarding against, so there's no need for a dirty flag.
+    const payload = { prices: state.prices, targetCounts: state.targetCounts, cashCarry: state.cashCarry };
+    const fields = ["prices", "targetCounts", "cashCarry"];
     if (callfileChanged) {
       payload.callfile = state.callfile;
       fields.push("callfile");

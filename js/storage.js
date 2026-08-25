@@ -6,7 +6,7 @@
 
 const STORAGE_KEY = "diageoPresenter";
 const OWNER_KEY = "diageoPresenterUid";
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 function defaultState() {
   const prices = {};
@@ -42,6 +42,21 @@ function defaultState() {
     },
     callfileSession: {
       activeGrade: (window.CALLFILE_GRADES && window.CALLFILE_GRADES[0]) || "Platinum"
+    },
+    // A single remembered draft of the Cash & Carry Form (js/cashcarry.js), fully persisted with
+    // no session-only counterpart — unlike every other feature's session/persisted split, the
+    // entire point here is that it survives indefinitely across visits, always pre-filling with
+    // whatever was last saved until the rep changes it.
+    cashCarry: {
+      seName: "",
+      territoryName: "",
+      chain: null,
+      otherChainText: "",
+      postcode: "",
+      depotName: "",
+      region: null,
+      productStatus: {},
+      updatedAt: null
     }
   };
 }
@@ -87,6 +102,7 @@ function loadState() {
     base.ppSession = parsed.ppSession || base.ppSession;
     base.callfile = parsed.callfile || base.callfile;
     base.callfileSession = parsed.callfileSession || base.callfileSession;
+    base.cashCarry = parsed.cashCarry || base.cashCarry;
     return base;
   } catch (e) {
     return defaultState();
@@ -134,10 +150,11 @@ function clearLocal() {
   localStorage.removeItem(OWNER_KEY);
 }
 
-// The subset of state that's mirrored to Firestore — prices/targetCounts/callfile, exactly the
-// fields already documented as "persisted across resets" (session state never leaves the device).
+// The subset of state that's mirrored to Firestore — prices/targetCounts/callfile/cashCarry,
+// exactly the fields already documented as "persisted across resets" (session state never leaves
+// the device).
 function cloudSlice(state) {
-  return { prices: state.prices, targetCounts: state.targetCounts, callfile: state.callfile };
+  return { prices: state.prices, targetCounts: state.targetCounts, callfile: state.callfile, cashCarry: state.cashCarry };
 }
 
 function defaultPersistedSlice() {
@@ -192,6 +209,10 @@ function hydrateFromCloud(slice) {
       state.callfile = slice.callfile;
     }
   }
+  // Straight overwrite, no conflict-timestamp comparison needed — unlike callfile, this is a
+  // single flat draft with no per-key deletions to protect (the whole object is always replaced
+  // wholesale by every save), so plain last-write-wins is correct and simplest.
+  if (slice.cashCarry) state.cashCarry = slice.cashCarry;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   return state;
 }
@@ -448,6 +469,20 @@ function savePPSnapshot(key, snapshot) {
   return state;
 }
 
+// Overwrites an existing ppHistory entry in place (as opposed to savePPSnapshot's append+cap) —
+// used when Save-ing over an already-saved range in Call File/Map's snapshot editor. index must
+// be a valid existing ppHistory index; a store's first-ever range still goes through
+// savePPSnapshot unchanged.
+function updatePPSnapshot(key, index, snapshot) {
+  const state = loadState();
+  const store = getLiveStore(state.callfile.stores, key);
+  if (!store || !Array.isArray(store.ppHistory) || index < 0 || index >= store.ppHistory.length) return state;
+  store.ppHistory[index] = snapshot;
+  state.callfile.updatedAt = new Date().toISOString();
+  saveState(state, true);
+  return state;
+}
+
 function setCallfileGrade(grade) {
   const state = loadState();
   state.callfileSession.activeGrade = grade;
@@ -480,6 +515,27 @@ function resetVisits(key) {
   store.nextVisitDate = null;
   state.callfile.updatedAt = new Date().toISOString();
   saveState(state, true);
+  return state;
+}
+
+// Overwrites the single remembered Cash & Carry Form draft in one atomic write — mirrors the
+// Call File store-modal's shape (read every field at Save time, one mutator, no intermediate
+// per-field setters) rather than 45 separate localStorage writes/Firestore pushes per Save.
+// No history/array: this is a single mutable draft the rep edits in place, not a per-visit log.
+function saveCashCarryDraft(fields) {
+  const state = loadState();
+  state.cashCarry = {
+    seName: (fields.seName || "").trim(),
+    territoryName: (fields.territoryName || "").trim(),
+    chain: fields.chain || null,
+    otherChainText: (fields.otherChainText || "").trim(),
+    postcode: (fields.postcode || "").trim(),
+    depotName: (fields.depotName || "").trim(),
+    region: fields.region || null,
+    productStatus: fields.productStatus || {},
+    updatedAt: new Date().toISOString()
+  };
+  saveState(state);
   return state;
 }
 
@@ -522,6 +578,8 @@ window.Storage = {
   resetVisits: resetVisits,
   resetAllVisits: resetAllVisits,
   savePPSnapshot: savePPSnapshot,
+  updatePPSnapshot: updatePPSnapshot,
+  saveCashCarryDraft: saveCashCarryDraft,
   hasSavedData: hasSavedData,
   getOwnerUid: getOwnerUid,
   setOwnerUid: setOwnerUid,

@@ -6,8 +6,16 @@
 // Session-only UI state (not persisted): which store's "Log a visit" date-picker modal is open,
 // which store's saved-range review modal is open (rangeIndex picks which of the up to 2 saved
 // snapshots is shown), and the add/edit-store modal — null when closed, "__new__" when adding a
-// new store, or an existing store's key when editing it.
-const callfileUi = { logKey: null, rangeKey: null, rangeIndex: 0, editKey: null };
+// new store, or an existing store's key when editing it. rangeEditing/rangeEditChecked/
+// rangeNewTier back the range modal's edit mode: rangeEditing is true while showing an editable
+// checklist (either an existing snapshot being edited, or a from-scratch range for a store with
+// no saved history yet); rangeEditChecked is the in-progress edit buffer (a Set of ids), only
+// non-null while rangeEditing; rangeNewTier is the tier picked for the from-scratch flow, before
+// any snapshot exists to attach it to.
+const callfileUi = {
+  logKey: null, rangeKey: null, rangeIndex: 0, editKey: null,
+  rangeEditing: false, rangeEditChecked: null, rangeNewTier: null
+};
 
 function escAttr(str) {
   const div = document.createElement("div");
@@ -65,10 +73,7 @@ function storeRowHtml(key, store) {
   const status = storeStatus(store);
   const meta = (store.postcode ? escAttr(store.postcode) + " &middot; " : "") +
     "Last " + formatDateShort(store.lastVisitDate) + " &middot; Next " + formatDateShort(store.nextVisitDate);
-  const history = store.ppHistory || [];
-  const rangeBtn = history.length > 0
-    ? '<button class="btn small secondary" data-action="range" data-key="' + escAttr(key) + '">Range</button>'
-    : "";
+  const rangeBtn = '<button class="btn small secondary" data-action="range" data-key="' + escAttr(key) + '">Range</button>';
   return (
     '<div class="store-card status-' + status + '">' +
       '<div class="store-row-top">' +
@@ -88,74 +93,161 @@ function storeRowHtml(key, store) {
   );
 }
 
-// Read-only equivalent of partnership.js's tileHtml — no click handler, no zoom/jump behavior,
-// just a fixed record of what was ticked at the time the snapshot was saved.
-function snapshotTileHtml(id, checked) {
-  const product = window.CATALOG[id];
-  if (!product) return "";
-  return (
-    '<div class="tile pp-tile">' +
-      '<img src="' + product.image + '" alt="' + escAttr(product.name) + '" />' +
-      '<div class="tick-row' + (checked ? " checked" : "") + '"><span>' + (checked ? "✓ In stock" : "Not stocked") + "</span></div>" +
-    "</div>"
-  );
-}
-
-// Renders a snapshot's sections in the same shape as layout-pp.js's tier definition, but always
-// the fixed `items` list per section — no "jump to Core" promotion, since that's a live-editing
-// display feature (see partnership.js) that a frozen historical snapshot doesn't need.
-function snapshotSectionsHtml(tierKey, checkedIds) {
-  const tier = window.PP_LAYOUT[tierKey];
-  if (!tier) return "";
-  const checkedSet = new Set(checkedIds);
-  return tier.sections.map(function (section) {
-    const tiles = section.items.map(function (id) { return snapshotTileHtml(id, checkedSet.has(id)); }).join("");
-    return '<section class="category"><h3>' + escAttr(section.label) + '</h3><div class="tile-grid">' + tiles + "</div></section>";
-  }).join("");
-}
-
 function openRangeModal(key) {
   callfileUi.rangeKey = key;
   callfileUi.rangeIndex = 0;
+  callfileUi.rangeEditing = false;
+  callfileUi.rangeEditChecked = null;
+  callfileUi.rangeNewTier = null;
   render();
 }
 
 function closeRangeModal() {
   callfileUi.rangeKey = null;
+  callfileUi.rangeEditing = false;
+  callfileUi.rangeEditChecked = null;
+  callfileUi.rangeNewTier = null;
+  render();
+}
+
+function selectRangeTab(index) {
+  callfileUi.rangeIndex = index;
+  callfileUi.rangeEditing = false;
+  callfileUi.rangeEditChecked = null;
+  render();
+}
+
+function startRangeEditExisting(snapshot) {
+  callfileUi.rangeEditing = true;
+  callfileUi.rangeEditChecked = new Set(snapshot.checkedIds);
+  render();
+}
+
+function startRangeNewTier(tierKey) {
+  callfileUi.rangeNewTier = tierKey;
+  callfileUi.rangeEditing = true;
+  callfileUi.rangeEditChecked = new Set();
+  render();
+}
+
+function toggleRangeChecked(id) {
+  if (callfileUi.rangeEditChecked.has(id)) callfileUi.rangeEditChecked.delete(id);
+  else callfileUi.rangeEditChecked.add(id);
+  render();
+}
+
+// historyLen lets Cancel know whether to fall back to the tier picker (from-scratch flow, no
+// snapshot to return to) or the read-only view of the snapshot that was being edited.
+function cancelRangeEdit(historyLen) {
+  callfileUi.rangeEditing = false;
+  callfileUi.rangeEditChecked = null;
+  if (historyLen === 0) callfileUi.rangeNewTier = null;
+  render();
+}
+
+function saveRangeEdit(store, history) {
+  const state = Storage.loadState();
+  if (history.length === 0) {
+    const tierKey = callfileUi.rangeNewTier;
+    const target = state.targetCounts[tierKey] || 1;
+    const snapshot = window.PPStats.buildSnapshot(tierKey, Array.from(callfileUi.rangeEditChecked), target, todayISO());
+    Storage.savePPSnapshot(callfileUi.rangeKey, snapshot);
+    callfileUi.rangeIndex = 0;
+    callfileUi.rangeNewTier = null;
+  } else {
+    const snapshot = history[callfileUi.rangeIndex];
+    const target = state.targetCounts[snapshot.tierKey] || 1;
+    // Date is deliberately preserved (same date, same index) — this overwrites the existing
+    // snapshot in place rather than creating a new dated entry.
+    const updated = window.PPStats.buildSnapshot(snapshot.tierKey, Array.from(callfileUi.rangeEditChecked), target, snapshot.date);
+    Storage.updatePPSnapshot(callfileUi.rangeKey, callfileUi.rangeIndex, updated);
+  }
+  callfileUi.rangeEditing = false;
+  callfileUi.rangeEditChecked = null;
   render();
 }
 
 function renderRangeModal(state) {
   const modal = document.getElementById("range-modal");
   const store = callfileUi.rangeKey ? Storage.getLiveStore(state.callfile.stores, callfileUi.rangeKey) : null;
-  const history = store ? (store.ppHistory || []) : [];
-  if (!store || history.length === 0) {
+  if (!store) {
     modal.classList.add("hidden");
     return;
   }
+  const history = store.ppHistory || [];
+  document.getElementById("range-modal-store").textContent = store.name;
+  const detail = document.getElementById("range-snapshot-detail");
+
+  if (history.length === 0) {
+    document.getElementById("range-snapshot-tabs").innerHTML = "";
+    if (!callfileUi.rangeEditing) {
+      detail.innerHTML =
+        '<p class="range-snapshot-summary">No saved range yet for this store — pick a tier to start one.</p>' +
+        '<div class="tier-tabs range-tier-picker">' +
+          Object.keys(window.PP_LAYOUT).map(function (tierKey) {
+            return '<button type="button" data-action="range-new-tier" data-tier="' + tierKey + '">' +
+              escAttr(window.PP_LAYOUT[tierKey].label) + "</button>";
+          }).join("") +
+        "</div>";
+    } else {
+      const tierKey = callfileUi.rangeNewTier;
+      const tier = window.PP_LAYOUT[tierKey];
+      const target = state.targetCounts[tierKey] || 1;
+      const stats = window.PPStats.tierStats(tier, target, callfileUi.rangeEditChecked);
+      const unlockedTag = stats.unlocked ? ' <span class="core-status complete">Unlocked</span>' : "";
+      detail.innerHTML =
+        '<p class="range-snapshot-summary">' + escAttr(tier.label) + " &middot; " +
+          stats.checkedCount + "/" + stats.target + " (" + stats.pct + "%)" + unlockedTag + "</p>" +
+        '<div class="range-modal-actions">' +
+          '<button type="button" class="btn secondary small" data-action="range-cancel">Cancel</button>' +
+          '<button type="button" class="btn small" data-action="range-save">Save</button>' +
+        "</div>" +
+        window.PPSnapshot.sectionsHtml(tierKey, Array.from(callfileUi.rangeEditChecked), { editable: true });
+    }
+    modal.classList.remove("hidden");
+    return;
+  }
+
   const index = Math.min(callfileUi.rangeIndex, history.length - 1);
   const snapshot = history[index];
   const tier = window.PP_LAYOUT[snapshot.tierKey];
-
-  document.getElementById("range-modal-store").textContent = store.name;
 
   document.getElementById("range-snapshot-tabs").innerHTML = history.map(function (snap, i) {
     return '<button type="button" class="' + (i === index ? "active" : "") + '" data-action="range-tab" data-index="' + i + '">' +
       formatDateShort(snap.date) + "</button>";
   }).join("");
 
-  const unlockedTag = snapshot.unlocked ? ' <span class="core-status complete">Unlocked</span>' : "";
-  document.getElementById("range-snapshot-detail").innerHTML =
-    '<p class="range-snapshot-summary">' + escAttr(tier.label) + " &middot; " + formatDate(snapshot.date) + " &middot; " +
-      snapshot.checkedCount + "/" + snapshot.target + " (" + snapshot.pct + "%)" + unlockedTag +
-    "</p>" +
-    snapshotSectionsHtml(snapshot.tierKey, snapshot.checkedIds);
-
+  if (callfileUi.rangeEditing) {
+    const target = state.targetCounts[snapshot.tierKey] || 1;
+    const stats = window.PPStats.tierStats(tier, target, callfileUi.rangeEditChecked);
+    const unlockedTag = stats.unlocked ? ' <span class="core-status complete">Unlocked</span>' : "";
+    detail.innerHTML =
+      '<p class="range-snapshot-summary">' + escAttr(tier.label) + " &middot; " +
+        stats.checkedCount + "/" + stats.target + " (" + stats.pct + "%)" + unlockedTag + "</p>" +
+      '<div class="range-modal-actions">' +
+        '<button type="button" class="btn secondary small" data-action="range-cancel">Cancel</button>' +
+        '<button type="button" class="btn small" data-action="range-save">Save</button>' +
+      "</div>" +
+      window.PPSnapshot.sectionsHtml(snapshot.tierKey, Array.from(callfileUi.rangeEditChecked), { editable: true });
+  } else {
+    const unlockedTag = snapshot.unlocked ? ' <span class="core-status complete">Unlocked</span>' : "";
+    detail.innerHTML =
+      '<p class="range-snapshot-summary">' + escAttr(tier.label) + " &middot; " + formatDate(snapshot.date) + " &middot; " +
+        snapshot.checkedCount + "/" + snapshot.target + " (" + snapshot.pct + "%)" + unlockedTag + "</p>" +
+      '<div class="range-modal-actions"><button type="button" class="btn secondary small" data-action="range-edit">Edit</button></div>' +
+      window.PPSnapshot.sectionsHtml(snapshot.tierKey, snapshot.checkedIds, { editable: false });
+  }
   modal.classList.remove("hidden");
 }
 
+// "All" is a UI-only pseudo-grade for the tab strip/store-list filtering below — it must never
+// be added to window.CALLFILE_GRADES itself, since that array is also the whitelist for real
+// store grade values (Storage.addStore/updateStore, the store-edit-modal <select>, home.js's
+// per-grade breakdown).
+const CALLFILE_TABS = ["All"].concat(window.CALLFILE_GRADES);
+
 function gradeTabsHtml(state, byGrade) {
-  return window.CALLFILE_GRADES.map(function (g) {
+  return CALLFILE_TABS.map(function (g) {
     const active = state.callfileSession.activeGrade === g;
     return (
       '<button class="grade-tab grade-tab-' + g.toLowerCase() + (active ? " active" : "") + '" data-grade="' + g + '">' +
@@ -165,16 +257,17 @@ function gradeTabsHtml(state, byGrade) {
   }).join("");
 }
 
-// Platinum needs a Partial container (a rep can log 1 of the 2 required visits and land
-// mid-way); Gold/Silver never can, since storeStatus() only returns "amber" when visits-so-far
-// is below cfg.visitsRequired but still >0 — and those grades require just 1 visit to go green.
+// Platinum (and All, since it can contain Platinum stores) needs a Partial container (a rep can
+// log 1 of the 2 required visits and land mid-way); Gold/Silver never can, since storeStatus()
+// only returns "amber" when visits-so-far is below cfg.visitsRequired but still >0 — and those
+// grades require just 1 visit to go green.
 function statusGroupsForGrade(grade) {
   const groups = [
     { status: "red", label: "Not visited" },
     { status: "amber", label: "Partial" },
     { status: "green", label: "On Track" }
   ];
-  return grade === "Platinum" ? groups : groups.filter(function (g) { return g.status !== "amber"; });
+  return (grade === "Platinum" || grade === "All") ? groups : groups.filter(function (g) { return g.status !== "amber"; });
 }
 
 function statusGroupHtml(label, status, entries) {
@@ -302,7 +395,7 @@ function render() {
 
   const query = (document.getElementById("callfile-search").value || "").trim().toLowerCase();
 
-  const byGrade = {};
+  const byGrade = { All: [] };
   window.CALLFILE_GRADES.forEach(function (g) { byGrade[g] = []; });
 
   Storage.liveStoreKeys(cf.stores).forEach(function (key) {
@@ -311,10 +404,12 @@ function render() {
       const haystack = (store.name + " " + store.postcode).toLowerCase();
       if (haystack.indexOf(query) === -1) return;
     }
-    if (byGrade[store.grade]) byGrade[store.grade].push({ key: key, store: store });
+    const entry = { key: key, store: store };
+    if (byGrade[store.grade]) byGrade[store.grade].push(entry);
+    byGrade.All.push(entry);
   });
 
-  window.CALLFILE_GRADES.forEach(function (g) {
+  CALLFILE_TABS.forEach(function (g) {
     byGrade[g].sort(function (a, b) {
       const an = a.store.nextVisitDate || "0000-00-00";
       const bn = b.store.nextVisitDate || "0000-00-00";
@@ -326,8 +421,9 @@ function render() {
   document.getElementById("grade-tabs").innerHTML = gradeTabsHtml(state, byGrade);
 
   const activeGrade = state.callfileSession.activeGrade;
+  const noMatchLabel = activeGrade === "All" ? "No stores" : "No " + activeGrade + " stores";
   document.getElementById("callfile-sections").innerHTML = gradePanelHtml(activeGrade, byGrade[activeGrade]) ||
-    '<p class="empty-note">' + (storeCount ? "No " + activeGrade + " stores match your search." : "Upload a call file (.xls) to get started.") + "</p>";
+    '<p class="empty-note">' + (storeCount ? noMatchLabel + " match your search." : "Upload a call file (.xls) to get started.") + "</p>";
 
   renderVisitModal(state);
   renderRangeModal(state);
@@ -454,8 +550,29 @@ document.addEventListener("DOMContentLoaded", function () {
   document.getElementById("range-snapshot-tabs").addEventListener("click", function (e) {
     const btn = e.target.closest('button[data-action="range-tab"]');
     if (!btn) return;
-    callfileUi.rangeIndex = parseInt(btn.dataset.index, 10) || 0;
-    render();
+    selectRangeTab(parseInt(btn.dataset.index, 10) || 0);
+  });
+
+  document.getElementById("range-snapshot-detail").addEventListener("click", function (e) {
+    const state = Storage.loadState();
+    const store = callfileUi.rangeKey ? Storage.getLiveStore(state.callfile.stores, callfileUi.rangeKey) : null;
+    if (!store) return;
+    const history = store.ppHistory || [];
+
+    const tierBtn = e.target.closest('button[data-action="range-new-tier"]');
+    if (tierBtn) { startRangeNewTier(tierBtn.dataset.tier); return; }
+
+    const editBtn = e.target.closest('button[data-action="range-edit"]');
+    if (editBtn) { startRangeEditExisting(history[Math.min(callfileUi.rangeIndex, history.length - 1)]); return; }
+
+    const cancelBtn = e.target.closest('button[data-action="range-cancel"]');
+    if (cancelBtn) { cancelRangeEdit(history.length); return; }
+
+    const saveBtn = e.target.closest('button[data-action="range-save"]');
+    if (saveBtn) { saveRangeEdit(store, history); return; }
+
+    const row = e.target.closest('.tick-row[data-action="range-toggle"]');
+    if (row) { e.preventDefault(); toggleRangeChecked(row.dataset.id); }
   });
 
   document.getElementById("visit-modal-close").addEventListener("click", closeVisitModal);

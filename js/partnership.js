@@ -81,16 +81,19 @@ function sectionItemsToRender(tier, section, state) {
   return section.items.concat(jumpedItems(tier, section, state));
 }
 
-// Some sections (currently only Tier 3's Bonus Range) require at least `min` ticked within a
-// named subgroup rather than either "everything" (isCore) or "nothing" — e.g. 2 of 4 bottles AND
-// 1 of 2 crush flavours. Returns null for sections with no `gate` config.
-function sectionGateStats(state, section) {
-  if (!section.gate) return null;
-  const groups = section.gate.groups.map(function (g) {
-    const checked = g.items.filter(function (id) { return !!state.ppSession.checked[id]; }).length;
-    return { label: g.label, checked: checked, min: g.min, total: g.items.length, met: checked >= g.min };
+// Thin wrapper over js/pp-stats.js's parameterized version — builds a Set from the live
+// ppSession.checked map so behavior/output here is unchanged, while the same math is also
+// reusable by Call File/Map's range-snapshot editor against a frozen snapshot's checkedIds.
+function checkedSetFromState(state) {
+  const set = new Set();
+  Object.keys(state.ppSession.checked).forEach(function (id) {
+    if (state.ppSession.checked[id]) set.add(id);
   });
-  return { groups: groups, complete: groups.every(function (g) { return g.met; }) };
+  return set;
+}
+
+function sectionGateStats(state, section) {
+  return window.PPStats.sectionGateStats(section, checkedSetFromState(state));
 }
 
 function gateTagHtml(section, state, stats) {
@@ -124,15 +127,8 @@ function sectionHtml(tier, section, state, stats) {
   );
 }
 
-// Core Range is the mandatory "must stock" baseline (see layout-pp.js) — a tier can't be
-// considered reward-eligible on Bonus/Premium items alone, so its completion gates the tier %.
 function coreStats(state, tier) {
-  const core = tier.sections.find(function (s) { return s.isCore; }) || null;
-  if (!core) return { coreTotal: 0, coreCheckedCount: 0, coreComplete: true };
-  const total = core.items.length;
-  let checked = 0;
-  core.items.forEach(function (id) { if (state.ppSession.checked[id]) checked++; });
-  return { coreTotal: total, coreCheckedCount: checked, coreComplete: total === 0 || checked === total };
+  return window.PPStats.coreStats(tier, checkedSetFromState(state));
 }
 
 // Builds the tier-reward line's parenthetical from whatever gates the tier actually has, so it
@@ -153,61 +149,13 @@ function gateSummaryText(tier) {
   return parts.join("; ");
 }
 
-// Most items count individually toward a tier's required-product total, but a gate group flagged
-// `mergeCount: true` (currently Tier 2's Captain Morgan/Gordon's 35cl+20cl pairs) counts as at
-// most 1 no matter how many of its items are ticked — ticking one size, the other, or both all
-// count the same.
 function tierCheckedCount(state, tier) {
-  const mergedIds = new Set();
-  const mergeGroups = [];
-  tier.sections.forEach(function (section) {
-    if (!section.gate) return;
-    section.gate.groups.forEach(function (g) {
-      if (!g.mergeCount) return;
-      mergeGroups.push(g.items);
-      g.items.forEach(function (id) { mergedIds.add(id); });
-    });
-  });
-  const ids = new Set();
-  tier.sections.forEach(function (section) { section.items.forEach(function (id) { ids.add(id); }); });
-  let count = 0;
-  ids.forEach(function (id) {
-    if (mergedIds.has(id)) return;
-    if (state.ppSession.checked[id]) count++;
-  });
-  mergeGroups.forEach(function (items) {
-    if (items.some(function (id) { return !!state.ppSession.checked[id]; })) count++;
-  });
-  return count;
+  return window.PPStats.tierCheckedCount(tier, checkedSetFromState(state));
 }
 
 function tierStats(state, tierKey) {
   const tier = window.PP_LAYOUT[tierKey];
-  const checkedCount = tierCheckedCount(state, tier);
-  const target = state.targetCounts[tierKey] || 1;
-  const realPct = Math.round((checkedCount / target) * 100);
-
-  const core = coreStats(state, tier);
-  let gatesComplete = core.coreComplete;
-  tier.sections.forEach(function (section) {
-    const gate = sectionGateStats(state, section);
-    if (gate && !gate.complete) gatesComplete = false;
-  });
-  const pct = gatesComplete ? realPct : Math.min(realPct, 89);
-
-  // Most tiers unlock their reward at 90%+ of the required count; a tier can instead set
-  // `unlockCount` (Tier 3 at 20 of 23, Tier 2 at 22 of 24) to unlock at that exact count instead —
-  // either way, the section gates above (Core Range 100%, Bonus Range quotas) still apply on top.
-  const unlockCount = tier.unlockCount || null;
-  const unlocked = unlockCount != null
-    ? (gatesComplete && checkedCount >= unlockCount)
-    : (gatesComplete && realPct >= 90);
-
-  return {
-    checkedCount: checkedCount, target: target, pct: pct, realPct: realPct,
-    coreComplete: core.coreComplete, coreCheckedCount: core.coreCheckedCount, coreTotal: core.coreTotal,
-    gatesComplete: gatesComplete, unlockCount: unlockCount, unlocked: unlocked
-  };
+  return window.PPStats.tierStats(tier, state.targetCounts[tierKey] || 1, checkedSetFromState(state));
 }
 
 function openProductModal(id) {
@@ -255,11 +203,7 @@ function renderModal(state) {
 // what gets frozen into a Call File snapshot, since ppSession.checked is a flat map shared across
 // tiers (core range ids are the same across tier1/2/3).
 function tierCheckedIds(tier, state) {
-  const ids = [];
-  tier.sections.forEach(function (section) {
-    section.items.forEach(function (id) { if (state.ppSession.checked[id]) ids.push(id); });
-  });
-  return ids;
+  return window.PPStats.tierCheckedIds(tier, checkedSetFromState(state));
 }
 
 function openStorePicker() {
@@ -417,15 +361,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const tier = window.PP_LAYOUT[tierKey];
     const stats = tierStats(state, tierKey);
     const store = state.callfile.stores[key];
-    Storage.savePPSnapshot(key, {
-      date: todayISO(),
-      tierKey: tierKey,
-      checkedIds: tierCheckedIds(tier, state),
-      checkedCount: stats.checkedCount,
-      target: stats.target,
-      pct: stats.pct,
-      unlocked: stats.unlocked
-    });
+    Storage.savePPSnapshot(key, window.PPStats.buildSnapshot(tierKey, tierCheckedIds(tier, state), stats.target, todayISO()));
     closeStorePicker();
     alert("Saved " + tier.label + " range for " + store.name + " — " + stats.checkedCount + "/" + stats.target + " (" + stats.pct + "%)");
     render();

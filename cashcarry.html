@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Cash & Carry Form — Diageo</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0b0b0d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" href="images/favicon.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <main>
+    <p class="empty-note">Fill this in on every C&amp;C visit — answers are remembered for next time. When done, tap "Open official form" to submit the real compliance form.</p>
+
+    <label class="field-label" for="cc-se-name">SE Name</label>
+    <input type="text" id="cc-se-name" class="date-input" />
+
+    <label class="field-label" for="cc-territory">Territory Name</label>
+    <input type="text" id="cc-territory" class="date-input" />
+
+    <label class="field-label" for="cc-chain">Enter the C&amp;C you visited</label>
+    <select id="cc-chain" class="date-input"></select>
+
+    <div id="cc-other-wrap" class="hidden">
+      <label class="field-label" for="cc-other-text">If other please state which</label>
+      <input type="text" id="cc-other-text" class="date-input" />
+    </div>
+
+    <label class="field-label" for="cc-postcode">Add the full postcode of the C&amp;C you visited</label>
+    <input type="text" id="cc-postcode" class="date-input" />
+
+    <label class="field-label" for="cc-depot-name">Add the name of the C&amp;C you visited - e.g. Bestway Wolverhampton</label>
+    <input type="text" id="cc-depot-name" class="date-input" />
+
+    <label class="field-label" for="cc-region">Are you reporting on a depot based in the North or South?</label>
+    <p class="field-hint">Select which region the depot is in</p>
+    <select id="cc-region" class="date-input"></select>
+
+    <div id="cc-products"></div>
+  </main>
+
+  <div class="reset-bar">
+    <button class="btn full" id="cc-save-btn" type="button">Save answers</button>
+    <a class="btn secondary full" id="cc-open-form-link"
+       href="https://forms.cloud.microsoft/pages/responsepage.aspx?id=GlDrQXH24Eylv7ZBaMNwX-HyvsfMcclMnLOsLmuX-SdUQU5BSFlBTjBUQjhXNk9GOFZXU0lORTNYNC4u&route=shorturl"
+       target="_blank" rel="noopener">Open official form →</a>
+  </div>
+
+  <script type="module" src="js/firebase-config.js"></script>
+  <script src="js/layout-cashcarry.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/cloud-sync.js"></script>
+  <script src="js/cashcarry.js"></script>
+  <script>renderNav("cashcarry");</script>
+</body>
+</html>
