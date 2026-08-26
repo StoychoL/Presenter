@@ -9,6 +9,12 @@ const mapState = {
   markerLayer: null,    // L.layerGroup(), cleared+rebuilt on every plot pass
   hasFitBounds: false,  // true after the first auto-fit, so later re-renders (cloud hydration,
                          // live onSnapshot updates) don't yank the rep's current pan/zoom
+  plottedKeys: new Set(), // store keys ever included in a bounds fit/extend this page load — lets
+                           // plotMarkers() notice markers appearing for the first time (e.g. a
+                           // secondary upload's postcodes finishing geocoding after the initial
+                           // fit already locked) and grow the view to include them, without
+                           // re-fitting around stores the rep has already seen and may have
+                           // panned away from
   inFlightPostcodes: new Set(), // normalized postcodes currently being geocoded, to dedupe
                                  // concurrent render() calls firing overlapping requests
   statusColors: null,    // resolved once from CSS custom properties (see resolveStatusColors)
@@ -127,10 +133,24 @@ function geocodeBatch(postcodes) {
     });
 }
 
+// A large upload (e.g. a secondary-territory call file) can span several batches. Promise.all
+// would reject the whole call the moment any one batch fails (a single flaky response over
+// patchy in-store wifi), discarding the other batches' perfectly good results too — silently
+// dropping stores from the map that never should have been affected. Promise.allSettled keeps
+// whatever succeeded; postcodes whose batch failed simply stay uncached and get retried on the
+// next render(), same as this app already does for any other not-yet-geocoded postcode.
 function geocodeMissing(postcodes) {
   const batches = chunk(postcodes, POSTCODES_IO_BATCH_SIZE);
-  return Promise.all(batches.map(geocodeBatch)).then(function (results) {
-    return Object.assign.apply(Object, [{}].concat(results));
+  return Promise.allSettled(batches.map(geocodeBatch)).then(function (settled) {
+    const merged = {};
+    settled.forEach(function (result) {
+      if (result.status === "fulfilled") {
+        Object.assign(merged, result.value);
+      } else {
+        console.error("Postcode batch lookup failed:", result.reason);
+      }
+    });
+    return merged;
   });
 }
 
@@ -445,6 +465,7 @@ function plotMarkers(entries, cache) {
   mapState.markerLayer.clearLayers();
   mapState.markersByKey = {};
   const bounds = [];
+  const newPoints = [];
   const unplacedEntries = [];
   const placeable = [];
   const groups = new Map();
@@ -498,6 +519,8 @@ function plotMarkers(entries, cache) {
     marker.addTo(mapState.markerLayer);
     mapState.markersByKey[e.key] = marker;
     bounds.push([item.plotLat, item.plotLng]);
+    if (!mapState.plottedKeys.has(e.key)) newPoints.push([item.plotLat, item.plotLng]);
+    mapState.plottedKeys.add(e.key);
   });
 
   updateNotice(unplacedEntries);
@@ -505,6 +528,15 @@ function plotMarkers(entries, cache) {
   if (bounds.length && !mapState.hasFitBounds) {
     mapState.leaflet.fitBounds(bounds, { padding: [24, 24], maxZoom: 12 });
     mapState.hasFitBounds = true;
+  } else if (newPoints.length) {
+    // Markers appearing for the first time after the view was already locked — e.g. a
+    // secondary-territory upload's postcodes finishing geocoding after the first paint already
+    // fit bounds around the primary set. Grow the current view to include them rather than
+    // leaving them off-screen, without re-centering away from stores the rep has already seen
+    // and may have panned away from.
+    const grown = L.latLngBounds(mapState.leaflet.getBounds());
+    newPoints.forEach(function (p) { grown.extend(p); });
+    mapState.leaflet.fitBounds(grown, { padding: [24, 24], maxZoom: 12 });
   }
 }
 
