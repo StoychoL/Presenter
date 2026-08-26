@@ -20,8 +20,11 @@
       <input type="file" id="callfile-secondary-input" accept=".xls,.xlsx,.csv" hidden />
       <button type="button" class="btn secondary full" id="add-store-btn">Add store</button>
       <button type="button" class="btn secondary full" id="reset-all-visits-btn">Reset all visits</button>
+      <button type="button" class="btn secondary full" id="add-cc-btn">Add Cash & Carry</button>
       <div class="callfile-meta" id="callfile-meta"></div>
     </div>
+
+    <div id="cc-list"></div>
 
     <div class="search-bar">
       <input type="search" id="callfile-search" placeholder="Search by store name or postcode" />
@@ -61,6 +64,21 @@
       </div>
       <button class="btn secondary full hidden" id="store-reset-visits-btn" type="button">Reset visits</button>
       <button class="btn danger full hidden" id="store-delete-btn" type="button">Delete store</button>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="cc-modal">
+    <div class="modal-card modal-card-narrow">
+      <button class="modal-close" id="cc-modal-close" aria-label="Close">&times;</button>
+      <h2>Add Cash & Carry</h2>
+      <label class="field-label" for="cc-name-input">Name</label>
+      <input type="text" id="cc-name-input" class="date-input" />
+      <label class="field-label" for="cc-postcode-input">Postcode</label>
+      <input type="text" id="cc-postcode-input" class="date-input" />
+      <div class="modal-actions">
+        <button class="btn secondary" id="cc-cancel-btn" type="button">Cancel</button>
+        <button class="btn" id="cc-save-btn" type="button">Save</button>
+      </div>
     </div>
   </div>
 

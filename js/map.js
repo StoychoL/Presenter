@@ -22,8 +22,14 @@ const mapState = {
   watchId: null,           // navigator.geolocation.watchPosition id, guards against double-starting
   lastUserLatLng: null,    // {lat, lng} from the most recent geolocation fix, for the locate button
   markersByKey: {},        // store key -> its current L.circleMarker, rebuilt each plotMarkers() call
-  openPopupKey: null        // store key whose popup was last opened, so it can be reopened after a
+  openPopupKey: null,       // store key whose popup was last opened, so it can be reopened after a
                              // logVisit-triggered marker rebuild (see reopenPopupIfNeeded)
+  ccMarkerLayer: null       // separate L.layerGroup() for permanent Cash & Carry pins — kept out of
+                             // markerLayer entirely, since that layer is cleared+rebuilt on every
+                             // plotMarkers() call (visits, cycle brief, range saves, geocoding...),
+                             // which would otherwise wipe C&C pins constantly. C&C geocoding shares
+                             // inFlightPostcodes above with store postcodes — it's just a Set of
+                             // normalized postcode strings, no coupling to store shape.
 };
 
 // Session-only UI state (not persisted): which store's "Log a visit" date-picker modal is open,
@@ -38,6 +44,9 @@ const mapUi = {
 
 const USER_LOCATION_COLOR = "#1a73e8"; // distinct from the red/amber/green status palette
 const PLATINUM_RING_COLOR = "#1a1a1a";
+const CC_LOCATION_COLOR = "#0b3d91"; // fixed dark blue for permanent Cash & Carry pins — not a
+                                      // status color, so not resolved from CSS custom properties
+                                      // like mapState.statusColors is
 
 const UK_CENTER = [54.5, -3.5];
 const UK_DEFAULT_ZOOM = 6;
@@ -174,6 +183,7 @@ function ensureMap() {
   }).addTo(map);
   mapState.markerLayer = L.layerGroup().addTo(map);
   mapState.userLocationLayer = L.layerGroup().addTo(map);
+  mapState.ccMarkerLayer = L.layerGroup().addTo(map);
   mapState.leaflet = map;
   initLiveLocation();
 }
@@ -253,6 +263,17 @@ function popupHtml(store, status, key) {
         cbBtn +
         '<button class="btn small" data-action="log" data-key="' + escAttr(key) + '">Log visit</button>' +
       "</div>" +
+    "</div>"
+  );
+}
+
+// Label-only, unlike popupHtml()'s store popup — no buttons, so no popupopen dispatch wiring
+// needed for these markers.
+function ccPopupHtml(loc) {
+  return (
+    '<div class="map-popup">' +
+      '<div class="map-popup-name">' + escAttr(loc.name) + "</div>" +
+      '<div class="map-popup-row">' + escAttr(loc.postcode) + "</div>" +
     "</div>"
   );
 }
@@ -584,6 +605,84 @@ function plotMarkers(entries, cache) {
   }
 }
 
+// A simpler sibling of plotMarkers() for permanent Cash & Carry depot pins: fixed dark-blue
+// color (no status), no popup actions, and deliberately doesn't participate in
+// bounds/hasFitBounds/plottedKeys — the map's auto-fit behavior stays driven only by store
+// markers, C&C pins just sit on whatever view is already showing.
+function plotCcMarkers(ccLocations, cache) {
+  mapState.ccMarkerLayer.clearLayers();
+  const placeable = [];
+  const groups = new Map();
+
+  ccLocations.forEach(function (loc) {
+    const pc = normalizePostcode(loc.postcode);
+    const geo = cache.entries[pc];
+    if (!geo || geo.found === false || geo.lat == null) return;
+    const item = { loc: loc, geo: geo };
+    placeable.push(item);
+    const groupKey = geo.lat.toFixed(5) + "," + geo.lng.toFixed(5);
+    if (!groups.has(groupKey)) groups.set(groupKey, []);
+    groups.get(groupKey).push(item);
+  });
+
+  groups.forEach(function (group) {
+    group.forEach(function (item, i) {
+      const offset = offsetForIndex(i, group.length, item.geo.lat);
+      item.plotLat = item.geo.lat + offset.dLat;
+      item.plotLng = item.geo.lng + offset.dLng;
+    });
+  });
+
+  placeable.forEach(function (item) {
+    L.circleMarker([item.plotLat, item.plotLng], {
+      radius: 9,
+      weight: 2,
+      color: "#fff",
+      fillColor: CC_LOCATION_COLOR,
+      fillOpacity: 0.95
+    }).bindPopup(ccPopupHtml(item.loc)).addTo(mapState.ccMarkerLayer);
+  });
+}
+
+// Self-contained geocode-and-plot flow for C&C locations, called unconditionally at the top of
+// render() (before any of the store-related empty-state early returns) so C&C pins always attempt
+// to plot regardless of whether a call file has been uploaded. Kept separate from render()'s
+// store-postcode geocode batch rather than merging into it, to avoid restructuring that function's
+// several early-return branches — the tradeoff is a second small network batch when both store and
+// C&C postcodes are missing at once, which is fine given C&C locations are typically few.
+function renderCcMarkers(state) {
+  const ccLocations = state.ccLocations || [];
+  const cache = loadGeocodeCache();
+  plotCcMarkers(ccLocations, cache); // paint whatever's already cached immediately
+
+  const missing = [];
+  const seen = new Set();
+  ccLocations.forEach(function (loc) {
+    const pc = normalizePostcode(loc.postcode);
+    if (cache.entries[pc] || seen.has(pc) || mapState.inFlightPostcodes.has(pc)) return;
+    seen.add(pc);
+    missing.push(pc);
+  });
+  if (!missing.length) return;
+
+  missing.forEach(function (pc) { mapState.inFlightPostcodes.add(pc); });
+  geocodeMissing(missing)
+    .then(function (results) {
+      // Re-read the cache fresh before merging, same lost-update-safe pattern render() uses for
+      // store postcodes below — an overlapping render() call's own fetch cycle could otherwise
+      // overwrite what this one just wrote (or vice versa).
+      const latestCache = loadGeocodeCache();
+      Object.assign(latestCache.entries, results);
+      saveGeocodeCache(latestCache);
+      missing.forEach(function (pc) { mapState.inFlightPostcodes.delete(pc); });
+      plotCcMarkers(Storage.loadState().ccLocations || [], latestCache);
+    })
+    .catch(function (err) {
+      missing.forEach(function (pc) { mapState.inFlightPostcodes.delete(pc); });
+      console.error("C&C postcode lookup failed:", err);
+    });
+}
+
 function showEmpty(msg) {
   const el = document.getElementById("map-empty");
   el.textContent = msg;
@@ -636,6 +735,7 @@ function render() {
     : "";
 
   ensureMap();
+  renderCcMarkers(state);
 
   if (!allStoreKeys.length) {
     showEmpty("Upload a call file (on the Call File tab) to see stores on the map.");

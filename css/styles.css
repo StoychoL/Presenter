@@ -940,7 +940,8 @@ main {
   padding: 16px 16px 0;
 }
 
-#add-store-btn {
+#add-store-btn,
+#add-cc-btn {
   margin-top: 8px;
 }
 
@@ -948,6 +949,43 @@ main {
   margin-top: 8px;
   color: var(--ink-soft);
   font-size: 14px;
+}
+
+.cc-list-panel {
+  margin: 14px 16px 0;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.cc-list-panel h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.cc-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.cc-row:last-child { border-bottom: none; }
+
+.cc-row-name {
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+}
+
+.cc-row-postcode {
+  color: var(--ink-soft);
+  font-size: 13px;
+  flex: none;
 }
 
 .search-bar {

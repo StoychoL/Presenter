@@ -6,7 +6,7 @@
 
 const STORAGE_KEY = "diageoPresenter";
 const OWNER_KEY = "diageoPresenterUid";
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 function defaultState() {
   const prices = {};
@@ -57,7 +57,12 @@ function defaultState() {
       region: null,
       productStatus: {},
       updatedAt: null
-    }
+    },
+    // Cash & Carry depot pins added from Call File ("Add Cash & Carry") and plotted permanently
+    // on the Map in dark blue. Fully persisted with no session-only counterpart — like cashCarry
+    // above, these survive indefinitely and no Reset button touches them. Unlike callfile.stores,
+    // entries here have no grade/visits — they're just a name + postcode to place a pin.
+    ccLocations: []
   };
 }
 
@@ -103,6 +108,7 @@ function loadState() {
     base.callfile = parsed.callfile || base.callfile;
     base.callfileSession = parsed.callfileSession || base.callfileSession;
     base.cashCarry = parsed.cashCarry || base.cashCarry;
+    base.ccLocations = parsed.ccLocations || base.ccLocations;
     return base;
   } catch (e) {
     return defaultState();
@@ -154,7 +160,13 @@ function clearLocal() {
 // exactly the fields already documented as "persisted across resets" (session state never leaves
 // the device).
 function cloudSlice(state) {
-  return { prices: state.prices, targetCounts: state.targetCounts, callfile: state.callfile, cashCarry: state.cashCarry };
+  return {
+    prices: state.prices,
+    targetCounts: state.targetCounts,
+    callfile: state.callfile,
+    cashCarry: state.cashCarry,
+    ccLocations: state.ccLocations
+  };
 }
 
 function defaultPersistedSlice() {
@@ -213,6 +225,7 @@ function hydrateFromCloud(slice) {
   // single flat draft with no per-key deletions to protect (the whole object is always replaced
   // wholesale by every save), so plain last-write-wins is correct and simplest.
   if (slice.cashCarry) state.cashCarry = slice.cashCarry;
+  if (slice.ccLocations) state.ccLocations = slice.ccLocations;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   return state;
 }
@@ -458,6 +471,32 @@ function deleteStore(key) {
   return state;
 }
 
+// Cash & Carry depot pins — a flat, unkeyed list (unlike callfile.stores, no grade/visits, so no
+// storeKey-style dedup identity). Not part of state.callfile, so these mutators don't pass
+// callfileChanged to saveState.
+function addCcLocation(name, postcode) {
+  const trimmedName = (name || "").trim();
+  const trimmedPostcode = (postcode || "").trim();
+  if (!trimmedName) return { error: "Enter a name." };
+  if (!trimmedPostcode) return { error: "Enter a postcode." };
+  const state = loadState();
+  state.ccLocations.push({
+    id: "cc" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+    name: trimmedName,
+    postcode: trimmedPostcode,
+    createdAt: new Date().toISOString()
+  });
+  saveState(state);
+  return { state: state };
+}
+
+function deleteCcLocation(id) {
+  const state = loadState();
+  state.ccLocations = state.ccLocations.filter(function (loc) { return loc.id !== id; });
+  saveState(state);
+  return state;
+}
+
 // Snapshots the Partnership Program checklist state onto a store so a rep can compare visits.
 // Keeps only the 2 most recent, newest first — there's no need for unlimited history here.
 function savePPSnapshot(key, snapshot) {
@@ -597,6 +636,8 @@ window.Storage = {
   addStore: addStore,
   updateStore: updateStore,
   deleteStore: deleteStore,
+  addCcLocation: addCcLocation,
+  deleteCcLocation: deleteCcLocation,
   setCallfileGrade: setCallfileGrade,
   logVisit: logVisit,
   logCycleBrief: logCycleBrief,

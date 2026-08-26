@@ -18,7 +18,8 @@
 const callfileUi = {
   logKey: null, rangeKey: null, rangeIndex: 0, editKey: null,
   rangeEditing: false, rangeEditChecked: null, rangeNewTier: null,
-  cbKey: null, cbCounts: null
+  cbKey: null, cbCounts: null,
+  ccModalOpen: false
 };
 
 function escAttr(str) {
@@ -426,6 +427,47 @@ function renderStoreModal(state) {
   modal.classList.remove("hidden");
 }
 
+function openAddCcModal() {
+  callfileUi.ccModalOpen = true;
+  render();
+}
+
+function closeCcModal() {
+  callfileUi.ccModalOpen = false;
+  render();
+}
+
+function renderCcModal(state) {
+  const modal = document.getElementById("cc-modal");
+  if (!callfileUi.ccModalOpen) {
+    modal.classList.add("hidden");
+    return;
+  }
+  // Always a fresh add, never a prefilled edit — clear the fields every time it opens.
+  document.getElementById("cc-name-input").value = "";
+  document.getElementById("cc-postcode-input").value = "";
+  modal.classList.remove("hidden");
+}
+
+function ccListHtml(ccLocations) {
+  if (!ccLocations.length) return "";
+  const rows = ccLocations.map(function (loc) {
+    return (
+      '<div class="cc-row">' +
+        '<span class="cc-row-name">' + escAttr(loc.name) + "</span>" +
+        '<span class="cc-row-postcode">' + escAttr(loc.postcode) + "</span>" +
+        '<button class="btn small danger" data-action="delete-cc" data-id="' + escAttr(loc.id) + '">Delete</button>' +
+      "</div>"
+    );
+  }).join("");
+  return (
+    '<div class="cc-list-panel">' +
+      "<h3>Cash & Carry Locations</h3>" +
+      rows +
+    "</div>"
+  );
+}
+
 function render() {
   const state = Storage.loadState();
   const cf = state.callfile;
@@ -470,10 +512,13 @@ function render() {
   document.getElementById("callfile-sections").innerHTML = gradePanelHtml(activeGrade, byGrade[activeGrade]) ||
     '<p class="empty-note">' + (storeCount ? noMatchLabel + " match your search." : "Upload a call file (.xls) to get started.") + "</p>";
 
+  document.getElementById("cc-list").innerHTML = ccListHtml(state.ccLocations || []);
+
   renderVisitModal(state);
   renderRangeModal(state);
   renderStoreModal(state);
   renderCbModal(state);
+  renderCcModal(state);
 }
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -712,10 +757,36 @@ document.addEventListener("DOMContentLoaded", function () {
     render();
   });
 
+  document.getElementById("add-cc-btn").addEventListener("click", openAddCcModal);
+  document.getElementById("cc-modal-close").addEventListener("click", closeCcModal);
+  document.getElementById("cc-cancel-btn").addEventListener("click", closeCcModal);
+
+  document.getElementById("cc-modal").addEventListener("click", function (e) {
+    if (e.target.id === "cc-modal") closeCcModal();
+  });
+
+  document.getElementById("cc-save-btn").addEventListener("click", function () {
+    const name = document.getElementById("cc-name-input").value;
+    const postcode = document.getElementById("cc-postcode-input").value;
+    const result = Storage.addCcLocation(name, postcode);
+    if (result.error) { alert(result.error); return; }
+    callfileUi.ccModalOpen = false;
+    render();
+  });
+
+  document.getElementById("cc-list").addEventListener("click", function (e) {
+    const delBtn = e.target.closest('button[data-action="delete-cc"]');
+    if (!delBtn) return;
+    if (!confirm("Delete this Cash & Carry location?")) return;
+    Storage.deleteCcLocation(delBtn.dataset.id);
+    render();
+  });
+
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && callfileUi.logKey) closeVisitModal();
     if (e.key === "Escape" && callfileUi.rangeKey) closeRangeModal();
     if (e.key === "Escape" && callfileUi.editKey) closeStoreModal();
     if (e.key === "Escape" && callfileUi.cbKey) closeCbModal();
+    if (e.key === "Escape" && callfileUi.ccModalOpen) closeCcModal();
   });
 });
