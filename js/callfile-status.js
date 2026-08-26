@@ -13,6 +13,19 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Cycle Brief totals (js/home.js) reset every calendar quarter the same way storeStatus() below
+// resets every calendar month — nothing is deleted, a quarter's totals just stop being summed
+// once today's date rolls into the next one.
+function quarterKeyForDate(dateStr) {
+  const parts = dateStr.split("-").map(Number);
+  const q = Math.floor((parts[1] - 1) / 3) + 1;
+  return parts[0] + "-Q" + q;
+}
+
+function currentQuarterKey() {
+  return quarterKeyForDate(todayISO());
+}
+
 function storeStatus(store) {
   const cfg = window.CALLFILE_GRADE_CONFIG[store.grade] || { visitsRequired: 1 };
   const monthKey = todayISO().slice(0, 7);

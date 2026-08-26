@@ -343,6 +343,7 @@ function mergeRows(existing, rows, opts) {
       nextVisitDate: prior ? prior.nextVisitDate : null,
       visits: prior ? prior.visits.slice() : [],
       ppHistory: prior && prior.ppHistory ? prior.ppHistory.slice() : [],
+      cbEvents: prior && prior.cbEvents ? prior.cbEvents.slice() : [],
       secondary: secondary
     };
   });
@@ -403,6 +404,7 @@ function addStore(name, grade, postcode) {
     nextVisitDate: null,
     visits: [],
     ppHistory: [],
+    cbEvents: [],
     secondary: false
   };
   state.callfile.updatedAt = new Date().toISOString();
@@ -433,6 +435,7 @@ function updateStore(oldKey, name, grade, postcode) {
     nextVisitDate: store.nextVisitDate,
     visits: store.visits,
     ppHistory: store.ppHistory,
+    cbEvents: store.cbEvents || [],
     secondary: store.secondary
   };
 
@@ -501,6 +504,27 @@ function logVisit(key, dateStr, cadenceWeeks) {
   const next = new Date(dateStr);
   next.setDate(next.getDate() + cadenceWeeks * 7);
   store.nextVisitDate = next.toISOString().slice(0, 10);
+  state.callfile.updatedAt = new Date().toISOString();
+  saveState(state, true);
+  return state;
+}
+
+// Each CB save is a distinct dated entry (direct/influence/pos counts from one visit's Cycle
+// Brief pop-out), never a running counter edited in place — mirrors logVisit's "never dedupe/
+// merge, just append" approach. Quarterly totals (js/home.js) are summed fresh from these on
+// every render, filtered to the current calendar quarter, so there's no explicit reset step —
+// same "derived, not stored" pattern storeStatus() already uses for monthly visit compliance.
+function logCycleBrief(key, dateStr, counts) {
+  const state = loadState();
+  const store = getLiveStore(state.callfile.stores, key);
+  if (!store) return state;
+  if (!store.cbEvents) store.cbEvents = [];
+  store.cbEvents.push({
+    date: dateStr,
+    direct: counts.direct || 0,
+    influence: counts.influence || 0,
+    pos: counts.pos || 0
+  });
   state.callfile.updatedAt = new Date().toISOString();
   saveState(state, true);
   return state;
@@ -575,6 +599,7 @@ window.Storage = {
   deleteStore: deleteStore,
   setCallfileGrade: setCallfileGrade,
   logVisit: logVisit,
+  logCycleBrief: logCycleBrief,
   resetVisits: resetVisits,
   resetAllVisits: resetAllVisits,
   savePPSnapshot: savePPSnapshot,

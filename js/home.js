@@ -110,6 +110,46 @@ function monthCoverageStats(stores) {
   return { coveredTotal: coveredTotal, partialTotal: partialTotal, storeTotal: storeTotal, perGrade: perGrade };
 }
 
+const CB_CATEGORIES = [
+  { key: "direct", label: "Direct Sale", dot: "grade-dot-direct" },
+  { key: "influence", label: "Influence Sale", dot: "grade-dot-influence" },
+  { key: "pos", label: "POS Activation", dot: "grade-dot-pos" }
+];
+
+// Sums every store's cbEvents whose date falls in the current calendar quarter — nothing is ever
+// deleted (see Storage.logCycleBrief), so this is what actually makes the totals "reset" every
+// quarter: last quarter's entries simply stop matching qKey once today's date rolls over. Mirrors
+// monthCoverageStats() above, just with quarterKeyForDate() (js/callfile-status.js) instead of
+// storeStatus()'s implicit monthly bucketing.
+function cycleBriefStats(stores) {
+  const qKey = currentQuarterKey();
+  const totals = { direct: 0, influence: 0, pos: 0 };
+  Storage.liveStoreKeys(stores).forEach(function (key) {
+    (stores[key].cbEvents || []).forEach(function (ev) {
+      if (quarterKeyForDate(ev.date) !== qKey) return;
+      totals.direct += ev.direct;
+      totals.influence += ev.influence;
+      totals.pos += ev.pos;
+    });
+  });
+  return totals;
+}
+
+function cycleBriefBodyHtml(totals) {
+  const pills = CB_CATEGORIES.map(function (cat) {
+    return (
+      '<div class="grade-pill">' +
+        '<div class="grade-pill-top">' +
+          '<span class="grade-dot ' + cat.dot + '"></span>' +
+          '<span class="grade-pill-name">' + cat.label + "</span>" +
+        "</div>" +
+        '<span class="grade-pill-frac">' + totals[cat.key] + "</span>" +
+      "</div>"
+    );
+  }).join("");
+  return '<div class="grade-breakdown">' + pills + "</div>";
+}
+
 function weekPanelBodyHtml(wk) {
   const pct = Math.min(100, Math.round((wk.total / WEEKLY_TARGET) * 100));
   const strip = WEEKDAY_LABELS.map(function (label, i) {
@@ -194,6 +234,9 @@ function render() {
 
   const mo = monthCoverageStats(stores);
   document.getElementById("month-panel-body").innerHTML = monthPanelBodyHtml(mo);
+
+  const cb = cycleBriefStats(stores);
+  document.getElementById("cycle-panel-body").innerHTML = cycleBriefBodyHtml(cb);
 }
 window.render = render;
 

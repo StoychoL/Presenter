@@ -12,9 +12,13 @@
 // no saved history yet); rangeEditChecked is the in-progress edit buffer (a Set of ids), only
 // non-null while rangeEditing; rangeNewTier is the tier picked for the from-scratch flow, before
 // any snapshot exists to attach it to.
+// cbKey/cbCounts back the Cycle Brief modal: cbKey is the store being logged against, cbCounts
+// is the in-progress { direct, influence, pos } edit buffer, reset to zeros every time the modal
+// opens (each save is a fresh dated entry, not an edit of a running total — see Storage.logCycleBrief).
 const callfileUi = {
   logKey: null, rangeKey: null, rangeIndex: 0, editKey: null,
-  rangeEditing: false, rangeEditChecked: null, rangeNewTier: null
+  rangeEditing: false, rangeEditChecked: null, rangeNewTier: null,
+  cbKey: null, cbCounts: null
 };
 
 function escAttr(str) {
@@ -74,6 +78,7 @@ function storeRowHtml(key, store) {
   const meta = (store.postcode ? escAttr(store.postcode) + " &middot; " : "") +
     "Last " + formatDateShort(store.lastVisitDate) + " &middot; Next " + formatDateShort(store.nextVisitDate);
   const rangeBtn = '<button class="btn small secondary" data-action="range" data-key="' + escAttr(key) + '">Range</button>';
+  const cbBtn = '<button class="btn small secondary" data-action="cb" data-key="' + escAttr(key) + '">CB</button>';
   return (
     '<div class="store-card status-' + status + '">' +
       '<div class="store-row-top">' +
@@ -85,6 +90,7 @@ function storeRowHtml(key, store) {
         '<span class="store-meta">' + meta + "</span>" +
         '<div class="store-row-actions">' +
           rangeBtn +
+          cbBtn +
           '<button class="btn small secondary" data-action="edit" data-key="' + escAttr(key) + '">Edit</button>' +
           '<button class="btn small" data-action="log" data-key="' + escAttr(key) + '">Log visit</button>' +
         "</div>" +
@@ -337,6 +343,45 @@ function renderVisitModal(state) {
   modal.classList.remove("hidden");
 }
 
+const CB_CATEGORIES = ["direct", "influence", "pos"];
+
+function openCbModal(key) {
+  callfileUi.cbKey = key;
+  callfileUi.cbCounts = { direct: 0, influence: 0, pos: 0 };
+  render();
+}
+
+function closeCbModal() {
+  callfileUi.cbKey = null;
+  callfileUi.cbCounts = null;
+  render();
+}
+
+function cbInc(cat) {
+  callfileUi.cbCounts[cat]++;
+  renderCbModal(Storage.loadState());
+}
+
+function cbDec(cat) {
+  callfileUi.cbCounts[cat] = Math.max(0, callfileUi.cbCounts[cat] - 1);
+  renderCbModal(Storage.loadState());
+}
+
+function renderCbModal(state) {
+  const modal = document.getElementById("cb-modal");
+  const store = callfileUi.cbKey ? Storage.getLiveStore(state.callfile.stores, callfileUi.cbKey) : null;
+  if (!store) {
+    modal.classList.add("hidden");
+    return;
+  }
+  document.getElementById("cb-modal-store").textContent =
+    store.name + (store.postcode ? " · " + store.postcode : "");
+  CB_CATEGORIES.forEach(function (cat) {
+    document.getElementById("cb-qty-" + cat).textContent = callfileUi.cbCounts[cat];
+  });
+  modal.classList.remove("hidden");
+}
+
 function openAddStoreModal() {
   callfileUi.editKey = "__new__";
   render();
@@ -428,6 +473,7 @@ function render() {
   renderVisitModal(state);
   renderRangeModal(state);
   renderStoreModal(state);
+  renderCbModal(state);
 }
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -527,6 +573,8 @@ document.addEventListener("DOMContentLoaded", function () {
     if (logBtn) { openVisitModal(logBtn.dataset.key); return; }
     const rangeBtn = e.target.closest('button[data-action="range"]');
     if (rangeBtn) { openRangeModal(rangeBtn.dataset.key); return; }
+    const cbBtn = e.target.closest('button[data-action="cb"]');
+    if (cbBtn) { openCbModal(cbBtn.dataset.key); return; }
     const editBtn = e.target.closest('button[data-action="edit"]');
     if (editBtn) openEditStoreModal(editBtn.dataset.key);
   });
@@ -596,6 +644,26 @@ document.addEventListener("DOMContentLoaded", function () {
     render();
   });
 
+  document.getElementById("cb-modal-close").addEventListener("click", closeCbModal);
+  document.getElementById("cb-cancel-btn").addEventListener("click", closeCbModal);
+
+  document.getElementById("cb-modal").addEventListener("click", function (e) {
+    if (e.target.id === "cb-modal") closeCbModal();
+    const stepBtn = e.target.closest("button[data-action='cb-inc'], button[data-action='cb-dec']");
+    if (!stepBtn) return;
+    if (stepBtn.dataset.action === "cb-inc") cbInc(stepBtn.dataset.cat);
+    else cbDec(stepBtn.dataset.cat);
+  });
+
+  document.getElementById("cb-confirm-btn").addEventListener("click", function () {
+    const key = callfileUi.cbKey;
+    if (!key) return;
+    Storage.logCycleBrief(key, todayISO(), callfileUi.cbCounts);
+    callfileUi.cbKey = null;
+    callfileUi.cbCounts = null;
+    render();
+  });
+
   document.getElementById("store-modal-close").addEventListener("click", closeStoreModal);
   document.getElementById("store-cancel-btn").addEventListener("click", closeStoreModal);
 
@@ -648,5 +716,6 @@ document.addEventListener("DOMContentLoaded", function () {
     if (e.key === "Escape" && callfileUi.logKey) closeVisitModal();
     if (e.key === "Escape" && callfileUi.rangeKey) closeRangeModal();
     if (e.key === "Escape" && callfileUi.editKey) closeStoreModal();
+    if (e.key === "Escape" && callfileUi.cbKey) closeCbModal();
   });
 });

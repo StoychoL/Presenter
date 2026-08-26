@@ -189,6 +189,10 @@ main {
     grid-template-columns: 1fr 1fr;
     align-items: stretch;
   }
+
+  .cycle-panel {
+    grid-column: 1 / -1;
+  }
 }
 
 .week-panel,
@@ -445,6 +449,9 @@ main {
 .grade-dot-platinum { background: #5b6472; }
 .grade-dot-gold { background: var(--gold); }
 .grade-dot-silver { background: #9aa1a8; }
+.grade-dot-direct { background: var(--accent); }
+.grade-dot-influence { background: var(--gold); }
+.grade-dot-pos { background: var(--good); }
 
 .grade-pill-name {
   font-size: 12px;
@@ -635,6 +642,33 @@ main {
   font-weight: 700;
   font-size: 20px;
 }
+
+/* ---------- Cycle Brief modal ---------- */
+.cb-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.cb-row:last-of-type { border-bottom: none; }
+
+.cb-row-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.cb-row .stepper {
+  flex: 0 0 auto;
+  width: 132px;
+}
+
+.cb-row .stepper .qty { flex: 1; }
+
+#cb-modal .modal-actions { margin-top: 16px; }
 
 /* ---------- Partnership Program tick boxes ---------- */
 .tick-row {

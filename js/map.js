@@ -32,7 +32,8 @@ const mapState = {
 // mode, same meaning as callfileUi's fields. Mirrors callfileUi in js/callfile.js.
 const mapUi = {
   logKey: null, rangeKey: null, rangeIndex: 0,
-  rangeEditing: false, rangeEditChecked: null, rangeNewTier: null
+  rangeEditing: false, rangeEditChecked: null, rangeNewTier: null,
+  cbKey: null, cbCounts: null
 };
 
 const USER_LOCATION_COLOR = "#1a73e8"; // distinct from the red/amber/green status palette
@@ -237,6 +238,7 @@ function locateMe() {
 
 function popupHtml(store, status, key) {
   const rangeBtn = '<button class="btn small secondary" data-action="range" data-key="' + escAttr(key) + '">Range</button>';
+  const cbBtn = '<button class="btn small secondary" data-action="cb" data-key="' + escAttr(key) + '">CB</button>';
   return (
     '<div class="map-popup">' +
       '<div class="map-popup-name">' + escAttr(store.name) + "</div>" +
@@ -248,6 +250,7 @@ function popupHtml(store, status, key) {
       '<div class="map-popup-row">Next visit: ' + formatDateShort(store.nextVisitDate) + "</div>" +
       '<div class="map-popup-actions">' +
         rangeBtn +
+        cbBtn +
         '<button class="btn small" data-action="log" data-key="' + escAttr(key) + '">Log visit</button>' +
       "</div>" +
     "</div>"
@@ -276,6 +279,45 @@ function renderVisitModal(state) {
   }
   document.getElementById("visit-modal-store").textContent =
     store.name + (store.postcode ? " · " + store.postcode : "");
+  modal.classList.remove("hidden");
+}
+
+const CB_CATEGORIES = ["direct", "influence", "pos"];
+
+function openCbModal(key) {
+  mapUi.cbKey = key;
+  mapUi.cbCounts = { direct: 0, influence: 0, pos: 0 };
+  renderCbModal(Storage.loadState());
+}
+
+function closeCbModal() {
+  mapUi.cbKey = null;
+  mapUi.cbCounts = null;
+  renderCbModal(Storage.loadState());
+}
+
+function cbInc(cat) {
+  mapUi.cbCounts[cat]++;
+  renderCbModal(Storage.loadState());
+}
+
+function cbDec(cat) {
+  mapUi.cbCounts[cat] = Math.max(0, mapUi.cbCounts[cat] - 1);
+  renderCbModal(Storage.loadState());
+}
+
+function renderCbModal(state) {
+  const modal = document.getElementById("cb-modal");
+  const store = mapUi.cbKey ? Storage.getLiveStore(state.callfile.stores, mapUi.cbKey) : null;
+  if (!store) {
+    modal.classList.add("hidden");
+    return;
+  }
+  document.getElementById("cb-modal-store").textContent =
+    store.name + (store.postcode ? " · " + store.postcode : "");
+  CB_CATEGORIES.forEach(function (cat) {
+    document.getElementById("cb-qty-" + cat).textContent = mapUi.cbCounts[cat];
+  });
   modal.classList.remove("hidden");
 }
 
@@ -512,7 +554,9 @@ function plotMarkers(entries, cache) {
         const logBtn = evt.target.closest('button[data-action="log"]');
         if (logBtn) { openVisitModal(logBtn.dataset.key); return; }
         const rangeBtn = evt.target.closest('button[data-action="range"]');
-        if (rangeBtn) openRangeModal(rangeBtn.dataset.key);
+        if (rangeBtn) { openRangeModal(rangeBtn.dataset.key); return; }
+        const cbBtn = evt.target.closest('button[data-action="cb"]');
+        if (cbBtn) openCbModal(cbBtn.dataset.key);
       };
     });
 
@@ -683,6 +727,26 @@ document.addEventListener("DOMContentLoaded", function () {
     reopenPopupIfNeeded();
   });
 
+  document.getElementById("cb-modal-close").addEventListener("click", closeCbModal);
+  document.getElementById("cb-cancel-btn").addEventListener("click", closeCbModal);
+
+  document.getElementById("cb-modal").addEventListener("click", function (e) {
+    if (e.target.id === "cb-modal") closeCbModal();
+    const stepBtn = e.target.closest("button[data-action='cb-inc'], button[data-action='cb-dec']");
+    if (!stepBtn) return;
+    if (stepBtn.dataset.action === "cb-inc") cbInc(stepBtn.dataset.cat);
+    else cbDec(stepBtn.dataset.cat);
+  });
+
+  document.getElementById("cb-confirm-btn").addEventListener("click", function () {
+    const key = mapUi.cbKey;
+    if (!key) return;
+    Storage.logCycleBrief(key, todayISO(), mapUi.cbCounts);
+    mapUi.cbKey = null;
+    mapUi.cbCounts = null;
+    renderCbModal(Storage.loadState());
+  });
+
   document.getElementById("range-modal-close").addEventListener("click", closeRangeModal);
 
   document.getElementById("range-modal").addEventListener("click", function (e) {
@@ -720,5 +784,6 @@ document.addEventListener("DOMContentLoaded", function () {
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && mapUi.logKey) closeVisitModal();
     if (e.key === "Escape" && mapUi.rangeKey) closeRangeModal();
+    if (e.key === "Escape" && mapUi.cbKey) closeCbModal();
   });
 });

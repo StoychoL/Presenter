@@ -61,6 +61,42 @@
     </div>
   </div>
 
+  <div class="modal-backdrop hidden" id="cb-modal">
+    <div class="modal-card modal-card-narrow">
+      <button class="modal-close" id="cb-modal-close" aria-label="Close">&times;</button>
+      <h2>Cycle Brief</h2>
+      <p class="modal-store-name" id="cb-modal-store"></p>
+      <div class="cb-row">
+        <span class="cb-row-label">Direct Sale</span>
+        <div class="stepper">
+          <button data-action="cb-dec" data-cat="direct" type="button">−</button>
+          <span class="qty" id="cb-qty-direct">0</span>
+          <button data-action="cb-inc" data-cat="direct" type="button">+</button>
+        </div>
+      </div>
+      <div class="cb-row">
+        <span class="cb-row-label">Influence Sale</span>
+        <div class="stepper">
+          <button data-action="cb-dec" data-cat="influence" type="button">−</button>
+          <span class="qty" id="cb-qty-influence">0</span>
+          <button data-action="cb-inc" data-cat="influence" type="button">+</button>
+        </div>
+      </div>
+      <div class="cb-row">
+        <span class="cb-row-label">POS Activation</span>
+        <div class="stepper">
+          <button data-action="cb-dec" data-cat="pos" type="button">−</button>
+          <span class="qty" id="cb-qty-pos">0</span>
+          <button data-action="cb-inc" data-cat="pos" type="button">+</button>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" id="cb-cancel-btn" type="button">Cancel</button>
+        <button class="btn" id="cb-confirm-btn" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="js/firebase-config.js"></script>
   <script src="js/vendor/leaflet/leaflet.js"></script>
   <script src="js/catalog.js"></script>
