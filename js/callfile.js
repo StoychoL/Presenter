@@ -536,6 +536,35 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  // "More actions" dropdown holding Upload Secondary Territory/Add store/Add Cash & Carry/Reset
+  // all visits — mirrors js/nav.js's rep-menu toggle/outside-click/Escape pattern exactly. Each
+  // item's own click/change handler (openAddStoreModal, openAddCcModal, the reset confirm, the
+  // file input) is wired independently elsewhere in this file; this block only opens/closes the
+  // panel itself and dismisses it whenever any item inside is clicked.
+  const cfMenuToggle = document.getElementById("callfile-menu-toggle");
+  const cfMenu = document.getElementById("callfile-menu");
+
+  function closeCallfileMenu() {
+    cfMenu.classList.add("hidden");
+    cfMenuToggle.setAttribute("aria-expanded", "false");
+  }
+
+  cfMenuToggle.addEventListener("click", function (e) {
+    e.stopPropagation();
+    const willOpen = cfMenu.classList.contains("hidden");
+    cfMenu.classList.toggle("hidden", !willOpen);
+    cfMenuToggle.setAttribute("aria-expanded", String(willOpen));
+  });
+  document.addEventListener("click", function (e) {
+    if (!cfMenu.classList.contains("hidden") && !cfMenu.contains(e.target) && e.target !== cfMenuToggle) closeCallfileMenu();
+  });
+  cfMenu.addEventListener("click", function (e) {
+    if (e.target.closest(".callfile-menu-item")) closeCallfileMenu();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !cfMenu.classList.contains("hidden")) closeCallfileMenu();
+  });
+
   document.getElementById("callfile-input").addEventListener("change", function (e) {
     const file = e.target.files && e.target.files[0];
     e.target.value = "";

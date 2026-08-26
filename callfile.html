@@ -16,11 +16,18 @@
     <div class="callfile-toolbar">
       <label class="btn full" for="callfile-input">Upload Call File</label>
       <input type="file" id="callfile-input" accept=".xls,.xlsx,.csv" hidden />
-      <label class="btn secondary full" for="callfile-secondary-input">Upload Secondary Territory</label>
-      <input type="file" id="callfile-secondary-input" accept=".xls,.xlsx,.csv" hidden />
-      <button type="button" class="btn secondary full" id="add-store-btn">Add store</button>
-      <button type="button" class="btn secondary full" id="reset-all-visits-btn">Reset all visits</button>
-      <button type="button" class="btn secondary full" id="add-cc-btn">Add Cash & Carry</button>
+
+      <div class="callfile-menu-wrap">
+        <button type="button" class="btn secondary full" id="callfile-menu-toggle" aria-haspopup="true" aria-expanded="false">More actions &#9662;</button>
+        <div class="callfile-menu hidden" id="callfile-menu">
+          <label class="callfile-menu-item" for="callfile-secondary-input">Upload Secondary Territory</label>
+          <input type="file" id="callfile-secondary-input" accept=".xls,.xlsx,.csv" hidden />
+          <button type="button" class="callfile-menu-item" id="add-store-btn">Add store</button>
+          <button type="button" class="callfile-menu-item" id="add-cc-btn">Add Cash & Carry</button>
+          <button type="button" class="callfile-menu-item danger" id="reset-all-visits-btn">Reset all visits</button>
+        </div>
+      </div>
+
       <div class="callfile-meta" id="callfile-meta"></div>
     </div>
 
