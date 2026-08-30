@@ -24,6 +24,18 @@ function parseLocalDate(dateStr) {
   return new Date(parts[0], parts[1] - 1, parts[2]);
 }
 
+function toLocalISO(date) {
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  return date.getFullYear() + "-" + mm + "-" + dd;
+}
+
+function escAttr(str) {
+  const div = document.createElement("div");
+  div.textContent = str == null ? "" : String(str);
+  return div.innerHTML.replace(/"/g, "&quot;");
+}
+
 function localToday() {
   const n = new Date();
   return new Date(n.getFullYear(), n.getMonth(), n.getDate());
@@ -75,7 +87,26 @@ function weekStats(stores, weeksAgo) {
   });
 
   const total = counts.reduce(function (a, b) { return a + b; }, 0);
-  return { monday: monday, friday: weekDates[4], counts: counts, total: total, todayIdx: todayIdx };
+  const isoDates = weekDates.map(toLocalISO);
+  return { monday: monday, friday: weekDates[4], counts: counts, total: total, todayIdx: todayIdx, isoDates: isoDates };
+}
+
+// Every store (including secondary-territory ones, same as weekStats above) whose visits array
+// contains `iso` one or more times — count uses .filter() rather than a single indexOf check so a
+// store visited twice the same day (Platinum) is reflected as 2, not silently deduped to 1.
+function storesVisitedOn(stores, iso) {
+  const result = [];
+  Storage.liveStoreKeys(stores).forEach(function (key) {
+    const store = stores[key];
+    const count = store.visits.filter(function (d) { return d === iso; }).length;
+    if (count > 0) result.push({ store: store, count: count });
+  });
+  return result;
+}
+
+function formatFullDate(iso) {
+  const d = parseLocalDate(iso);
+  return d.toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "short" });
 }
 
 // Coverage this local month, overall and per grade. "Covered" reuses storeStatus()'s green
@@ -158,7 +189,7 @@ function weekPanelBodyHtml(wk) {
     const barPct = Math.round((count / max) * 100);
     const isToday = i === wk.todayIdx;
     return (
-      '<div class="weekday-col' + (isToday ? " is-today" : "") + '">' +
+      '<div class="weekday-col' + (isToday ? " is-today" : "") + '" data-date="' + wk.isoDates[i] + '">' +
         '<span class="weekday-count">' + count + "</span>" +
         '<div class="weekday-bar-track"><div class="weekday-bar-fill" style="height:' + barPct + '%"></div></div>' +
         '<span class="weekday-label">' + label + "</span>" +
@@ -222,6 +253,47 @@ function monthPanelBodyHtml(mo) {
   );
 }
 
+// Ephemeral UI-only selection (which day's popup, if any, is open) — same "never persisted"
+// treatment as selectedWeeksAgo above.
+let openDayIso = null;
+
+function openDayModal(iso) {
+  openDayIso = iso;
+  renderDayModal(Storage.loadState());
+}
+
+function closeDayModal() {
+  openDayIso = null;
+  renderDayModal(Storage.loadState());
+}
+
+function dayModalBodyHtml(entries) {
+  if (!entries.length) return '<p class="empty-note">No visits logged this day.</p>';
+  const rows = entries.map(function (e) {
+    return (
+      '<li class="day-visit-row">' +
+        '<span class="store-name">' + escAttr(e.store.name) + "</span>" +
+        (e.store.postcode ? '<span class="store-meta">' + escAttr(e.store.postcode) + "</span>" : "") +
+        (e.count > 1 ? '<span class="secondary-badge">Visited ' + e.count + "x</span>" : "") +
+      "</li>"
+    );
+  }).join("");
+  return '<ul class="day-visit-list">' + rows + "</ul>";
+}
+
+function renderDayModal(state) {
+  const modal = document.getElementById("day-modal");
+  if (!openDayIso) {
+    modal.classList.add("hidden");
+    return;
+  }
+  const entries = storesVisitedOn(state.callfile.stores || {}, openDayIso);
+  document.getElementById("day-modal-title").textContent =
+    formatFullDate(openDayIso) + " — " + entries.length + (entries.length === 1 ? " store" : " stores") + " visited";
+  document.getElementById("day-modal-body").innerHTML = dayModalBodyHtml(entries);
+  modal.classList.remove("hidden");
+}
+
 function render() {
   const state = Storage.loadState();
   const stores = state.callfile.stores || {};
@@ -232,11 +304,21 @@ function render() {
   document.getElementById("week-prev").disabled = selectedWeeksAgo >= WEEKS_BACK;
   document.getElementById("week-next").disabled = selectedWeeksAgo === 0;
 
+  const territoryBadge = document.getElementById("territory-badge");
+  if (state.repTerritory) {
+    territoryBadge.textContent = "Territory " + state.repTerritory;
+    territoryBadge.classList.remove("hidden");
+  } else {
+    territoryBadge.classList.add("hidden");
+  }
+
   const mo = monthCoverageStats(stores);
   document.getElementById("month-panel-body").innerHTML = monthPanelBodyHtml(mo);
 
   const cb = cycleBriefStats(stores);
   document.getElementById("cycle-panel-body").innerHTML = cycleBriefBodyHtml(cb);
+
+  renderDayModal(state);
 }
 window.render = render;
 
@@ -249,5 +331,19 @@ document.addEventListener("DOMContentLoaded", function () {
     selectedWeeksAgo = Math.max(0, selectedWeeksAgo - 1);
     render();
   });
+
+  document.getElementById("week-panel-body").addEventListener("click", function (e) {
+    const col = e.target.closest(".weekday-col");
+    if (col && col.dataset.date) openDayModal(col.dataset.date);
+  });
+
+  document.getElementById("day-modal-close").addEventListener("click", closeDayModal);
+  document.getElementById("day-modal").addEventListener("click", function (e) {
+    if (e.target.id === "day-modal") closeDayModal();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && openDayIso) closeDayModal();
+  });
+
   render();
 });

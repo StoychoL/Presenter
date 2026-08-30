@@ -19,7 +19,8 @@ const callfileUi = {
   logKey: null, rangeKey: null, rangeIndex: 0, editKey: null,
   rangeEditing: false, rangeEditChecked: null, rangeNewTier: null,
   cbKey: null, cbCounts: null,
-  ccModalOpen: false
+  ccModalOpen: false,
+  territoryModalOpen: false
 };
 
 function escAttr(str) {
@@ -462,6 +463,26 @@ function renderCcModal(state) {
   modal.classList.remove("hidden");
 }
 
+function openTerritoryModal() {
+  callfileUi.territoryModalOpen = true;
+  render();
+}
+
+function closeTerritoryModal() {
+  callfileUi.territoryModalOpen = false;
+  render();
+}
+
+function renderTerritoryModal(state) {
+  const modal = document.getElementById("territory-modal");
+  if (!callfileUi.territoryModalOpen) {
+    modal.classList.add("hidden");
+    return;
+  }
+  document.getElementById("territory-code-input").value = state.repTerritory || "";
+  modal.classList.remove("hidden");
+}
+
 function ccListHtml(ccLocations) {
   if (!ccLocations.length) return "";
   const rows = ccLocations.map(function (loc) {
@@ -532,6 +553,7 @@ function render() {
   renderStoreModal(state);
   renderCbModal(state);
   renderCcModal(state);
+  renderTerritoryModal(state);
 }
 
 document.addEventListener("DOMContentLoaded", function () {
@@ -824,11 +846,31 @@ document.addEventListener("DOMContentLoaded", function () {
     render();
   });
 
+  document.getElementById("set-territory-btn").addEventListener("click", openTerritoryModal);
+  document.getElementById("territory-modal-close").addEventListener("click", closeTerritoryModal);
+  document.getElementById("territory-cancel-btn").addEventListener("click", closeTerritoryModal);
+
+  document.getElementById("territory-modal").addEventListener("click", function (e) {
+    if (e.target.id === "territory-modal") closeTerritoryModal();
+  });
+
+  document.getElementById("territory-save-btn").addEventListener("click", function () {
+    const raw = document.getElementById("territory-code-input").value.trim();
+    if (raw && !/^[A-E]\d{3}$/i.test(raw)) {
+      alert("Territory code should be a letter A-E followed by 3 digits, e.g. E006.");
+      return;
+    }
+    Storage.setRepTerritory(raw);
+    callfileUi.territoryModalOpen = false;
+    render();
+  });
+
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape" && callfileUi.logKey) closeVisitModal();
     if (e.key === "Escape" && callfileUi.rangeKey) closeRangeModal();
     if (e.key === "Escape" && callfileUi.editKey) closeStoreModal();
     if (e.key === "Escape" && callfileUi.cbKey) closeCbModal();
     if (e.key === "Escape" && callfileUi.ccModalOpen) closeCcModal();
+    if (e.key === "Escape" && callfileUi.territoryModalOpen) closeTerritoryModal();
   });
 });

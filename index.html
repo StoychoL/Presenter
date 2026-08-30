@@ -25,6 +25,7 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 20V14"></path><path d="M12 20V8"></path><path d="M18 20V4"></path></svg>
             </span>
             <h3>This Week</h3>
+            <span class="secondary-badge hidden" id="territory-badge"></span>
           </div>
           <div class="week-nav">
             <button type="button" class="week-nav-btn" id="week-prev" aria-label="Previous week">‹</button>
@@ -78,6 +79,14 @@
       <span class="deck-link-arrow" aria-hidden="true">→</span>
     </a>
   </main>
+
+  <div class="modal-backdrop hidden" id="day-modal">
+    <div class="modal-card modal-card-narrow">
+      <button class="modal-close" id="day-modal-close" aria-label="Close">&times;</button>
+      <h2 id="day-modal-title"></h2>
+      <div id="day-modal-body"></div>
+    </div>
+  </div>
   <script type="module" src="js/firebase-config.js"></script>
   <script src="js/layout-callfile.js"></script>
   <script src="js/callfile-status.js"></script>

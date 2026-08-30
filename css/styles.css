@@ -327,6 +327,13 @@ main {
   flex-direction: column;
   align-items: center;
   gap: 6px;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: background-color 0.15s var(--ease-out-expo);
+}
+
+.weekday-col:hover {
+  background: var(--bg);
 }
 
 .weekday-count {
@@ -1194,6 +1201,27 @@ main {
   background: rgba(201, 162, 75, 0.16);
   color: var(--gold);
   margin-left: 6px;
+}
+
+.day-visit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.day-visit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.day-visit-row:last-child {
+  border-bottom: none;
 }
 
 .btn.small {

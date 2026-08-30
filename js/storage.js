@@ -62,7 +62,11 @@ function defaultState() {
     // on the Map in dark blue. Fully persisted with no session-only counterpart — like cashCarry
     // above, these survive indefinitely and no Reset button touches them. Unlike callfile.stores,
     // entries here have no grade/visits — they're just a name + postcode to place a pin.
-    ccLocations: []
+    ccLocations: [],
+    // The rep's assigned territory code (e.g. "E006"), set via Call File's "Set Territory" button.
+    // Purely a self-reported label today — no manager-side feature reads it yet — but it's synced
+    // per-rep the same as cashCarry/ccLocations so a future manager dashboard can key off it.
+    repTerritory: null
   };
 }
 
@@ -109,6 +113,7 @@ function loadState() {
     base.callfileSession = parsed.callfileSession || base.callfileSession;
     base.cashCarry = parsed.cashCarry || base.cashCarry;
     base.ccLocations = parsed.ccLocations || base.ccLocations;
+    base.repTerritory = parsed.repTerritory || base.repTerritory;
     return base;
   } catch (e) {
     return defaultState();
@@ -165,7 +170,8 @@ function cloudSlice(state) {
     targetCounts: state.targetCounts,
     callfile: state.callfile,
     cashCarry: state.cashCarry,
-    ccLocations: state.ccLocations
+    ccLocations: state.ccLocations,
+    repTerritory: state.repTerritory
   };
 }
 
@@ -226,6 +232,7 @@ function hydrateFromCloud(slice) {
   // wholesale by every save), so plain last-write-wins is correct and simplest.
   if (slice.cashCarry) state.cashCarry = slice.cashCarry;
   if (slice.ccLocations) state.ccLocations = slice.ccLocations;
+  if (slice.repTerritory) state.repTerritory = slice.repTerritory;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   return state;
 }
@@ -602,6 +609,13 @@ function saveCashCarryDraft(fields) {
   return state;
 }
 
+function setRepTerritory(code) {
+  const state = loadState();
+  state.repTerritory = (code || "").trim().toUpperCase() || null;
+  saveState(state);
+  return state;
+}
+
 function resetAllVisits() {
   const state = loadState();
   liveStoreKeys(state.callfile.stores).forEach(function (key) {
@@ -646,6 +660,7 @@ window.Storage = {
   savePPSnapshot: savePPSnapshot,
   updatePPSnapshot: updatePPSnapshot,
   saveCashCarryDraft: saveCashCarryDraft,
+  setRepTerritory: setRepTerritory,
   hasSavedData: hasSavedData,
   getOwnerUid: getOwnerUid,
   setOwnerUid: setOwnerUid,

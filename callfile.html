@@ -24,6 +24,7 @@
           <input type="file" id="callfile-secondary-input" accept=".xls,.xlsx,.csv" hidden />
           <button type="button" class="callfile-menu-item" id="add-store-btn">Add store</button>
           <button type="button" class="callfile-menu-item" id="add-cc-btn">Add Cash & Carry</button>
+          <button type="button" class="callfile-menu-item" id="set-territory-btn">Set Territory</button>
           <button type="button" class="callfile-menu-item danger" id="reset-all-visits-btn">Reset all visits</button>
         </div>
       </div>
@@ -85,6 +86,20 @@
       <div class="modal-actions">
         <button class="btn secondary" id="cc-cancel-btn" type="button">Cancel</button>
         <button class="btn" id="cc-save-btn" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="territory-modal">
+    <div class="modal-card modal-card-narrow">
+      <button class="modal-close" id="territory-modal-close" aria-label="Close">&times;</button>
+      <h2>Set Territory</h2>
+      <p class="field-hint">Enter your territory code, e.g. E006</p>
+      <label class="field-label" for="territory-code-input">Territory code</label>
+      <input type="text" id="territory-code-input" class="date-input" maxlength="4" placeholder="E006" />
+      <div class="modal-actions">
+        <button class="btn secondary" id="territory-cancel-btn" type="button">Cancel</button>
+        <button class="btn" id="territory-save-btn" type="button">Save</button>
       </div>
     </div>
   </div>
