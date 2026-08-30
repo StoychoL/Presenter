@@ -4,7 +4,7 @@
 // presenter usable on patchy in-store wifi.
 // Bump CACHE_NAME whenever app files change to force clients to pick up the new version.
 
-const CACHE_NAME = "diageo-presenter-v63";
+const CACHE_NAME = "diageo-presenter-v66";
 
 const PRECACHE_URLS = [
   "./",
@@ -17,9 +17,13 @@ const PRECACHE_URLS = [
   "./deck.html",
   "./pp-deck.html",
   "./login.html",
+  "./manager-login.html",
+  "./manager-dashboard.html",
+  "./manager-map.html",
   "./css/styles.css",
   "./js/storage.js",
   "./js/home.js",
+  "./js/home-stats.js",
   "./js/nav.js",
   "./js/deck.js",
   "./js/pp-deck.js",
@@ -32,6 +36,7 @@ const PRECACHE_URLS = [
   "./js/pp-stats.js",
   "./js/pp-snapshot.js",
   "./js/map.js",
+  "./js/map-geocode.js",
   "./js/cashcarry.js",
   "./js/catalog.js",
   "./js/layout-products.js",
@@ -44,6 +49,11 @@ const PRECACHE_URLS = [
   "./js/firebase-config.js",
   "./js/cloud-sync.js",
   "./js/auth.js",
+  "./js/manager-auth.js",
+  "./js/manager-cloud.js",
+  "./js/manager-nav.js",
+  "./js/manager-home.js",
+  "./js/manager-map.js",
   "./manifest.json",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

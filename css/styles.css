@@ -1540,6 +1540,9 @@ main {
 
 .auth-link.hidden { display: none; }
 
+#auth-code-label.hidden,
+#auth-code.hidden { display: none; }
+
 /* ---------- Sales Presenter Deck ---------- */
 main.deck-page {
   padding: 0;
@@ -2037,4 +2040,334 @@ main.map-page {
   align-items: center;
   justify-content: center;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+/* ---------- Manager area (manager-dashboard.html / manager-map.html) ---------- */
+/* Fully separate shell from .app-header's horizontal top bar (js/nav.js) — the manager area is a
+   parallel, unrelated account type with its own left-hand sidebar nav (js/manager-nav.js). */
+
+.manager-shell {
+  display: flex;
+  align-items: flex-start;
+  min-height: 100vh;
+}
+
+.manager-sidebar {
+  flex: none;
+  width: 220px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.manager-sidebar .brand {
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--accent-dark);
+  text-decoration: none;
+  font-size: 20px;
+}
+
+.manager-sidebar-label {
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 2px 0 20px;
+}
+
+.manager-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.manager-sidebar-nav a {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap);
+  padding: 0 14px;
+  border-radius: 12px;
+  text-decoration: none;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.manager-sidebar-nav a.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.manager-account {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.manager-account .rep-email {
+  color: var(--ink-soft);
+  font-size: 13px;
+  padding-bottom: 8px;
+  word-break: break-all;
+}
+
+.manager-account .rep-email:empty { display: none; }
+
+.manager-account .rep-logout {
+  width: 100%;
+  min-height: var(--tap);
+  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.manager-account .rep-logout:hover { background: var(--border); }
+
+.manager-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.manager-main #map-container {
+  height: calc(100vh - 90px);
+}
+
+@media (max-width: 720px) {
+  .manager-shell { flex-direction: column; }
+
+  .manager-sidebar {
+    position: sticky;
+    width: auto;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+  }
+
+  .manager-sidebar-label { display: none; }
+  .manager-sidebar-nav { flex-direction: row; }
+
+  .manager-account {
+    margin-top: 0;
+    margin-left: auto;
+    padding-top: 0;
+    border-top: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .manager-account .rep-email { padding-bottom: 0; }
+  .manager-account .rep-logout { width: auto; padding: 0 14px; }
+}
+
+.manager-page-title {
+  margin: 24px 16px 4px;
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.manager-page-sub {
+  margin: 0 16px 20px;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.manager-empty {
+  margin: 0 16px;
+  color: var(--ink-soft);
+  font-size: 15px;
+}
+
+.manager-empty.hidden { display: none; }
+
+.manager-empty-note {
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.territory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+  margin: 0 16px 40px;
+}
+
+.territory-card {
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.territory-card:hover,
+.territory-card:focus-visible {
+  border-color: var(--accent);
+}
+
+/* Marks the currently-expanded territory — the system's "current selection" use of the one accent
+   color (see DESIGN.md), restrained to a border + faint tint rather than a full-saturation fill,
+   which is reserved for primary buttons/active nav. */
+.territory-card.active {
+  border-color: var(--accent);
+  background: rgba(181, 19, 107, 0.04);
+}
+
+.territory-card-code {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--accent-dark);
+}
+
+.territory-card-sub {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.territory-card-counts {
+  display: flex;
+  gap: 14px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.territory-count {
+  display: inline-flex;
+  align-items: center;
+}
+
+.rep-group {
+  margin-bottom: 20px;
+}
+
+.rep-group:last-child {
+  margin-bottom: 0;
+}
+
+.rep-group-head {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.rep-store-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rep-store-heading {
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  margin: 14px 0 8px;
+}
+
+/* .dash-stat-grid's own margin (24px 16px 0) is tuned for sitting directly on the page background
+   with side gutters — inside the territory detail section it already has its own side margins
+   (see .territory-detail below), so cut that down rather than double-inset the panels, and drop
+   the bottom padding tuned for index.html's persistent nav. */
+.rep-stat-grid {
+  margin: 0 0 16px;
+}
+
+.rep-stat-grid .week-panel,
+.rep-stat-grid .month-panel {
+  padding: 14px 16px 16px;
+  box-shadow: none;
+}
+
+/* Inline, in-page expansion of a selected territory card — deliberately NOT a card itself (no
+   border/background/shadow at this level): its contents (This Week/Month/Cycle Brief panels,
+   store cards) are already cards, and this system never nests one card inside another. A top
+   divider plus extra margin is what separates it from the grid above instead. */
+.territory-detail {
+  margin: 8px 16px 40px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
+}
+
+.territory-detail.hidden { display: none; }
+
+/* Plays once on every fresh render (innerHTML always creates a new element, so a CSS `animation`
+   — as opposed to a `transition` — reliably fires on each open/switch without any JS timing code),
+   opacity + transform only so nothing layout-triggering is animated. Gated the same way as the
+   Partnership Program celebration pulse (see .progress-badge.celebrate) — opt-out by default via
+   no-preference, rather than an opt-in reduced-motion override. */
+@media (prefers-reduced-motion: no-preference) {
+  .territory-detail:not(.hidden) {
+    animation: territory-detail-in 220ms var(--ease-out-expo) both;
+  }
+}
+
+@keyframes territory-detail-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.territory-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.territory-detail-head h2 {
+  margin: 0;
+  font-size: 23px;
+  font-weight: 800;
+  color: var(--accent-dark);
+}
+
+.territory-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.territory-detail-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  font-size: 20px;
+  line-height: 1;
+  flex: none;
+}
+
+.map-territory-select {
+  min-height: var(--tap);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 12px;
+  font-weight: 600;
 }

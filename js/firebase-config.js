@@ -13,7 +13,7 @@ import {
   signOut, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
-  getFirestore, doc, getDoc, setDoc, onSnapshot
+  getFirestore, doc, getDoc, setDoc, onSnapshot, collection, getDocs
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -41,7 +41,9 @@ window.FirebaseDb = {
   doc: doc,
   getDoc: getDoc,
   setDoc: setDoc,
-  onSnapshot: onSnapshot
+  onSnapshot: onSnapshot,
+  collection: collection,
+  getDocs: getDocs
 };
 
 window.dispatchEvent(new Event("firebase-ready"));

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Manager Dashboard — Diageo</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0b0b0d" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" href="images/favicon.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <main>
+    <h1 class="manager-page-title">Territories</h1>
+    <p class="manager-page-sub">Every rep's territory, grouped by their Call File territory code.</p>
+
+    <div id="manager-empty" class="manager-empty hidden"></div>
+    <div id="territory-grid" class="territory-grid"></div>
+
+    <section id="territory-detail" class="territory-detail hidden" aria-label="Territory detail">
+      <div class="territory-detail-head">
+        <h2 id="territory-detail-title"></h2>
+        <div class="territory-detail-actions">
+          <a class="btn small secondary" id="territory-detail-map-link" href="manager-map.html">View on Map</a>
+          <button type="button" class="territory-detail-close" id="territory-detail-close" aria-label="Collapse">&times;</button>
+        </div>
+      </div>
+      <div id="territory-detail-body"></div>
+    </section>
+  </main>
+
+  <script type="module" src="js/firebase-config.js"></script>
+  <script src="js/layout-callfile.js"></script>
+  <script src="js/callfile-status.js"></script>
+  <script src="js/home-stats.js"></script>
+  <script src="js/manager-nav.js"></script>
+  <script src="js/manager-cloud.js"></script>
+  <script src="js/manager-home.js"></script>
+  <script>renderManagerNav("dashboard");</script>
+</body>
+</html>

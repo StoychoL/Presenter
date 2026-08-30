@@ -3,10 +3,23 @@ rules_version = '2';
 // Each rep's data lives at /users/{uid} and is only readable/writable by that
 // signed-in rep — see CLAUDE.md's "Cloud sync (Firebase)" section for the shape
 // stored there and why session-only state never reaches Firestore at all.
+//
+// /managers/{uid} is a marker doc a manager account creates for itself at signup
+// (js/manager-auth.js) — its only purpose is letting rules below distinguish a
+// manager uid via exists(), so a manager account can read (never write) every
+// rep's /users/{uid} doc, for the read-only cross-rep dashboard/map in
+// manager-dashboard.html / manager-map.html. This is a soft, rules-level gate to
+// self-registered manager accounts (see js/manager-auth.js's access-code check) —
+// not a stronger admin-approval flow.
 service cloud.firestore {
   match /databases/{database}/documents {
+    match /managers/{uid} {
+      allow read, create: if request.auth != null && request.auth.uid == uid;
+    }
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null
+        && exists(/databases/$(database)/documents/managers/$(request.auth.uid));
     }
   }
 }

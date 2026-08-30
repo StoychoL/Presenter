@@ -27,14 +27,19 @@ function subscribeLive(ref) {
 // (legacy/never-tagged) or already this same account's — ask before adopting it as the new
 // account's starting point. Otherwise the account starts from the same defaults a fresh install
 // would use. uid is threaded through purely to stamp ownership once initialization succeeds.
-function handleFirstLogin(ref, uid) {
+function handleFirstLogin(ref, uid, email) {
   const importIt = Storage.hasSavedData() && confirm(
     "This device has saved data (prices/call file) from before you signed in. Import it into your new account?"
   );
   const local = Storage.loadState();
   const slice = importIt
-    ? { prices: local.prices, targetCounts: local.targetCounts, callfile: local.callfile, cashCarry: local.cashCarry, ccLocations: local.ccLocations }
+    ? { prices: local.prices, targetCounts: local.targetCounts, callfile: local.callfile, cashCarry: local.cashCarry, ccLocations: local.ccLocations, repTerritory: local.repTerritory }
     : Storage.defaultPersistedSlice();
+  // Not part of the local persisted-state shape at all (see storage.js) — stamped straight from
+  // the auth user's email so a manager account listing every users/{uid} doc has a human-readable
+  // label per rep (see manager-dashboard.html), without needing a way to look up arbitrary other
+  // users' emails via the client SDK (there isn't one).
+  slice.repEmail = email;
 
   window.FirebaseDb.setDoc(ref, slice)
     .then(function () {
@@ -45,7 +50,7 @@ function handleFirstLogin(ref, uid) {
     .catch(function (err) { console.error("Could not initialize your account:", err); });
 }
 
-function hydrateAndSubscribe(uid) {
+function hydrateAndSubscribe(uid, email) {
   // This device's cached blob (if any) belongs to whichever uid last stamped it. A mismatch means
   // it's a *different* rep's data — wipe it before anything below can read it as "this account's
   // data", which is what let one rep's cache leak into another rep's brand-new account. No tag at
@@ -61,7 +66,7 @@ function hydrateAndSubscribe(uid) {
       Storage.setOwnerUid(uid);
       rerenderIfPossible();
     } else {
-      handleFirstLogin(ref, uid);
+      handleFirstLogin(ref, uid, email);
     }
     subscribeLive(ref);
   }).catch(function (err) {
@@ -99,8 +104,8 @@ function initCloudSync() {
     // cashCarry is pushed unconditionally every save, same tier as prices/targetCounts — unlike
     // callfile's callfileChanged gate, a single flat always-fully-overwritten draft has no
     // multi-writer race worth guarding against, so there's no need for a dirty flag.
-    const payload = { prices: state.prices, targetCounts: state.targetCounts, cashCarry: state.cashCarry, ccLocations: state.ccLocations, repTerritory: state.repTerritory };
-    const fields = ["prices", "targetCounts", "cashCarry", "ccLocations", "repTerritory"];
+    const payload = { prices: state.prices, targetCounts: state.targetCounts, cashCarry: state.cashCarry, ccLocations: state.ccLocations, repTerritory: state.repTerritory, repEmail: user.email };
+    const fields = ["prices", "targetCounts", "cashCarry", "ccLocations", "repTerritory", "repEmail"];
     if (callfileChanged) {
       payload.callfile = state.callfile;
       fields.push("callfile");
@@ -112,7 +117,7 @@ function initCloudSync() {
 
   window.FirebaseAuth.onAuthStateChanged(auth, function (user) {
     if (!user) { window.location.replace("login.html"); return; }
-    hydrateAndSubscribe(user.uid);
+    hydrateAndSubscribe(user.uid, user.email);
   });
 }
 

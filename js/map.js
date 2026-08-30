@@ -1,8 +1,8 @@
 // Map page logic: plots every Call File store with a postcode as a colored pin on a UK map,
 // colored by the same red/amber/green storeStatus() rule Call File uses (js/callfile-status.js).
-// Postcodes are geocoded at runtime via the free postcodes.io bulk API and cached in a separate
-// localStorage key (not the schema-versioned diageoPresenter blob — coordinates are derived
-// reference data, not private per-rep state, so they don't need cloud sync).
+// Postcode geocoding, the geocode cache, co-located-marker offsetting, and status-color resolution
+// live in js/map-geocode.js (window.MapGeocode), shared with manager-map.js — see that file's
+// header comment.
 
 const mapState = {
   leaflet: null,        // the L.Map instance, created exactly once (see ensureMap)
@@ -50,9 +50,6 @@ const CC_LOCATION_COLOR = "#0b3d91"; // fixed dark blue for permanent Cash & Car
 
 const UK_CENTER = [54.5, -3.5];
 const UK_DEFAULT_ZOOM = 6;
-const GEOCODE_CACHE_KEY = "diageoGeocodeCache";
-const GEOCODE_CACHE_VERSION = 1;
-const POSTCODES_IO_BATCH_SIZE = 100; // hard limit per postcodes.io bulk request
 
 function escAttr(str) {
   const div = document.createElement("div");
@@ -72,32 +69,6 @@ function formatDate(iso) {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function normalizePostcode(pc) {
-  return String(pc || "").trim().toUpperCase().replace(/\s+/g, "");
-}
-
-function loadGeocodeCache() {
-  try {
-    const raw = localStorage.getItem(GEOCODE_CACHE_KEY);
-    if (!raw) return { v: GEOCODE_CACHE_VERSION, entries: {} };
-    const parsed = JSON.parse(raw);
-    if (!parsed || parsed.v !== GEOCODE_CACHE_VERSION || !parsed.entries) {
-      return { v: GEOCODE_CACHE_VERSION, entries: {} };
-    }
-    return parsed;
-  } catch (e) {
-    return { v: GEOCODE_CACHE_VERSION, entries: {} };
-  }
-}
-
-function saveGeocodeCache(cache) {
-  try {
-    localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(cache));
-  } catch (e) {
-    // localStorage full/unavailable — geocoding still works this session, just isn't cached.
-  }
-}
-
 // Mirrors whichever grade tab was last active on Call File (state.callfileSession.activeGrade,
 // shared device-local session state) so the two pages can't drift out of sync without any new
 // persisted state of Map's own — "All" (the default) shows every grade, same as before this filter
@@ -115,67 +86,9 @@ function collectStoreEntries(state) {
     .sort(function (a, b) { return a.key < b.key ? -1 : a.key > b.key ? 1 : 0; });
 }
 
-function chunk(arr, size) {
-  const out = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
-}
-
-function geocodeBatch(postcodes) {
-  return fetch("https://api.postcodes.io/postcodes", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ postcodes: postcodes })
-  })
-    .then(function (res) {
-      if (!res.ok) throw new Error("postcodes.io responded " + res.status);
-      return res.json();
-    })
-    .then(function (json) {
-      const out = {};
-      (json.result || []).forEach(function (entry, i) {
-        const pc = postcodes[i];
-        out[pc] = entry.result
-          ? { lat: entry.result.latitude, lng: entry.result.longitude }
-          : { found: false };
-      });
-      return out;
-    });
-}
-
-// A large upload (e.g. a secondary-territory call file) can span several batches. Promise.all
-// would reject the whole call the moment any one batch fails (a single flaky response over
-// patchy in-store wifi), discarding the other batches' perfectly good results too — silently
-// dropping stores from the map that never should have been affected. Promise.allSettled keeps
-// whatever succeeded; postcodes whose batch failed simply stay uncached and get retried on the
-// next render(), same as this app already does for any other not-yet-geocoded postcode.
-function geocodeMissing(postcodes) {
-  const batches = chunk(postcodes, POSTCODES_IO_BATCH_SIZE);
-  return Promise.allSettled(batches.map(geocodeBatch)).then(function (settled) {
-    const merged = {};
-    settled.forEach(function (result) {
-      if (result.status === "fulfilled") {
-        Object.assign(merged, result.value);
-      } else {
-        console.error("Postcode batch lookup failed:", result.reason);
-      }
-    });
-    return merged;
-  });
-}
-
-function resolveStatusColors() {
-  const cs = getComputedStyle(document.documentElement);
-  return {
-    red: cs.getPropertyValue("--bad").trim(),
-    amber: cs.getPropertyValue("--warn").trim(),
-    green: cs.getPropertyValue("--good").trim()
-  };
-}
-
 function ensureMap() {
   if (mapState.leaflet) return;
-  mapState.statusColors = resolveStatusColors();
+  mapState.statusColors = window.MapGeocode.resolveStatusColors();
   const map = L.map("map-container", { zoomControl: true }).setView(UK_CENTER, UK_DEFAULT_ZOOM);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
@@ -511,32 +424,6 @@ function reopenPopupIfNeeded() {
   if (marker) marker.openPopup();
 }
 
-// postcodes.io geocodes to a postcode's centroid, not an exact address — so stores that share a
-// postcode (a shopping parade, e.g.) land on the exact same coordinate. Left alone, Leaflet just
-// stacks one circleMarker on top of another: only the one drawn last is visible or clickable, the
-// rest are perfectly hidden underneath (not missing data, just visually/interactively unreachable
-// — and since it's whichever one happened to be drawn last, which store "wins" can look like it
-// changes across reloads). offsetForIndex spreads a group's members around a small fixed-radius
-// circle centered on the true point, so every store gets its own distinguishable, tappable pin.
-function offsetForIndex(index, total, baseLat) {
-  if (total <= 1) return { dLat: 0, dLng: 0 };
-  // Not meant to be geographically precise — postcode-level geocoding already isn't — just
-  // enough to keep co-located stores individually tappable once a rep zooms to a normal
-  // interacting level (a rep can't usefully tell two stores apart at the widest zoom anyway,
-  // same as any dense map of points). Deliberately kept well under ~150m: neighboring-but-
-  // distinct postcodes in dense areas can be barely 150-200m apart in reality (e.g. CR0 0JB to
-  // CR0 0JD is ~170m), and a bigger radius here risks pushing one postcode's offset markers into
-  // a completely different, unrelated postcode's cluster.
-  const radiusMeters = 30 + Math.min(total, 8) * 12;
-  const angle = (2 * Math.PI * index) / total;
-  const metersPerDegLat = 111320;
-  const metersPerDegLng = 111320 * Math.cos((baseLat * Math.PI) / 180);
-  return {
-    dLat: (radiusMeters * Math.sin(angle)) / metersPerDegLat,
-    dLng: (radiusMeters * Math.cos(angle)) / metersPerDegLng
-  };
-}
-
 function plotMarkers(entries, cache) {
   mapState.markerLayer.clearLayers();
   mapState.markersByKey = {};
@@ -547,7 +434,7 @@ function plotMarkers(entries, cache) {
   const groups = new Map();
 
   entries.forEach(function (e) {
-    const pc = normalizePostcode(e.store.postcode);
+    const pc = window.MapGeocode.normalizePostcode(e.store.postcode);
     const geo = cache.entries[pc];
     if (!geo || geo.found === false || geo.lat == null) { unplacedEntries.push(e); return; }
     const item = { e: e, geo: geo };
@@ -561,7 +448,7 @@ function plotMarkers(entries, cache) {
   // collectStoreEntries(), so index-within-group is stable across renders.
   groups.forEach(function (group) {
     group.forEach(function (item, i) {
-      const offset = offsetForIndex(i, group.length, item.geo.lat);
+      const offset = window.MapGeocode.offsetForIndex(i, group.length, item.geo.lat);
       item.plotLat = item.geo.lat + offset.dLat;
       item.plotLng = item.geo.lng + offset.dLng;
     });
@@ -628,7 +515,7 @@ function plotCcMarkers(ccLocations, cache) {
   const groups = new Map();
 
   ccLocations.forEach(function (loc) {
-    const pc = normalizePostcode(loc.postcode);
+    const pc = window.MapGeocode.normalizePostcode(loc.postcode);
     const geo = cache.entries[pc];
     if (!geo || geo.found === false || geo.lat == null) return;
     const item = { loc: loc, geo: geo };
@@ -640,7 +527,7 @@ function plotCcMarkers(ccLocations, cache) {
 
   groups.forEach(function (group) {
     group.forEach(function (item, i) {
-      const offset = offsetForIndex(i, group.length, item.geo.lat);
+      const offset = window.MapGeocode.offsetForIndex(i, group.length, item.geo.lat);
       item.plotLat = item.geo.lat + offset.dLat;
       item.plotLng = item.geo.lng + offset.dLng;
     });
@@ -665,13 +552,13 @@ function plotCcMarkers(ccLocations, cache) {
 // C&C postcodes are missing at once, which is fine given C&C locations are typically few.
 function renderCcMarkers(state) {
   const ccLocations = state.ccLocations || [];
-  const cache = loadGeocodeCache();
+  const cache = window.MapGeocode.loadGeocodeCache();
   plotCcMarkers(ccLocations, cache); // paint whatever's already cached immediately
 
   const missing = [];
   const seen = new Set();
   ccLocations.forEach(function (loc) {
-    const pc = normalizePostcode(loc.postcode);
+    const pc = window.MapGeocode.normalizePostcode(loc.postcode);
     if (cache.entries[pc] || seen.has(pc) || mapState.inFlightPostcodes.has(pc)) return;
     seen.add(pc);
     missing.push(pc);
@@ -679,14 +566,14 @@ function renderCcMarkers(state) {
   if (!missing.length) return;
 
   missing.forEach(function (pc) { mapState.inFlightPostcodes.add(pc); });
-  geocodeMissing(missing)
+  window.MapGeocode.geocodeMissing(missing)
     .then(function (results) {
       // Re-read the cache fresh before merging, same lost-update-safe pattern render() uses for
       // store postcodes below — an overlapping render() call's own fetch cycle could otherwise
       // overwrite what this one just wrote (or vice versa).
-      const latestCache = loadGeocodeCache();
+      const latestCache = window.MapGeocode.loadGeocodeCache();
       Object.assign(latestCache.entries, results);
-      saveGeocodeCache(latestCache);
+      window.MapGeocode.saveGeocodeCache(latestCache);
       missing.forEach(function (pc) { mapState.inFlightPostcodes.delete(pc); });
       plotCcMarkers(Storage.loadState().ccLocations || [], latestCache);
     })
@@ -771,11 +658,11 @@ function render() {
   }
   hideEmpty();
 
-  const cache = loadGeocodeCache();
+  const cache = window.MapGeocode.loadGeocodeCache();
   const missing = [];
   const seen = new Set();
   entries.forEach(function (e) {
-    const pc = normalizePostcode(e.store.postcode);
+    const pc = window.MapGeocode.normalizePostcode(e.store.postcode);
     if (cache.entries[pc] || seen.has(pc) || mapState.inFlightPostcodes.has(pc)) return;
     seen.add(pc);
     missing.push(pc);
@@ -785,7 +672,7 @@ function render() {
 
   if (missing.length) {
     missing.forEach(function (pc) { mapState.inFlightPostcodes.add(pc); });
-    geocodeMissing(missing)
+    window.MapGeocode.geocodeMissing(missing)
       .then(function (results) {
         // Re-read the cache fresh right before merging, rather than reusing the closured `cache`
         // loaded at the top of this render() call — render() runs multiple times per page load
@@ -794,9 +681,9 @@ function render() {
         // overlapping cycle already wrote in the meantime, silently losing its newly-geocoded
         // postcodes (this is what made a random subset of stores disappear from the map on every
         // reload — not a network failure, a lost update between two concurrent cache saves).
-        const latestCache = loadGeocodeCache();
+        const latestCache = window.MapGeocode.loadGeocodeCache();
         Object.assign(latestCache.entries, results);
-        saveGeocodeCache(latestCache);
+        window.MapGeocode.saveGeocodeCache(latestCache);
         missing.forEach(function (pc) { mapState.inFlightPostcodes.delete(pc); });
         // Re-derive entries from current state rather than reusing the closured ones above —
         // an overlapping render() call (cloud hydration, onSnapshot) can resolve its own newer
