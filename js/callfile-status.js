@@ -40,3 +40,10 @@ function statusLabel(status) {
   if (status === "amber") return "1 visit";
   return "On track";
 }
+
+// cbEvents is append-only and always pushed in save order (Storage.logCycleBrief), so the last
+// array element is always the most recently saved Cycle Brief entry — no date-sorting needed.
+function lastCbEntry(store) {
+  if (!store.cbEvents || !store.cbEvents.length) return null;
+  return store.cbEvents[store.cbEvents.length - 1];
+}

@@ -4,7 +4,7 @@
 // presenter usable on patchy in-store wifi.
 // Bump CACHE_NAME whenever app files change to force clients to pick up the new version.
 
-const CACHE_NAME = "diageo-presenter-v60";
+const CACHE_NAME = "diageo-presenter-v61";
 
 const PRECACHE_URLS = [
   "./",

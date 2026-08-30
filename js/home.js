@@ -111,8 +111,8 @@ function monthCoverageStats(stores) {
 }
 
 const CB_CATEGORIES = [
-  { key: "direct", label: "Direct Sale", dot: "grade-dot-direct" },
-  { key: "influence", label: "Influence Sale", dot: "grade-dot-influence" },
+  { key: "direct", label: "Direct Sale NPDs", dot: "grade-dot-direct" },
+  { key: "influence", label: "Influence Sales NPDs", dot: "grade-dot-influence" },
   { key: "pos", label: "POS Activation", dot: "grade-dot-pos" }
 ];
 

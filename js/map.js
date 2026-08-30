@@ -246,9 +246,16 @@ function locateMe() {
   );
 }
 
+function cbSummaryText(entry) {
+  return "Last CB " + formatDateShort(entry.date) + " — Direct " + entry.direct +
+    " · Influence " + entry.influence + " · POS " + entry.pos;
+}
+
 function popupHtml(store, status, key) {
   const rangeBtn = '<button class="btn small secondary" data-action="range" data-key="' + escAttr(key) + '">Range</button>';
   const cbBtn = '<button class="btn small secondary" data-action="cb" data-key="' + escAttr(key) + '">CB</button>';
+  const lastCb = lastCbEntry(store);
+  const cbRow = lastCb ? '<div class="map-popup-row">' + cbSummaryText(lastCb) + "</div>" : "";
   return (
     '<div class="map-popup">' +
       '<div class="map-popup-name">' + escAttr(store.name) + "</div>" +
@@ -258,6 +265,7 @@ function popupHtml(store, status, key) {
       '<div class="map-popup-row">' + escAttr(store.postcode) + "</div>" +
       '<div class="map-popup-row">Last visit: ' + formatDateShort(store.lastVisitDate) + "</div>" +
       '<div class="map-popup-row">Next visit: ' + formatDateShort(store.nextVisitDate) + "</div>" +
+      cbRow +
       '<div class="map-popup-actions">' +
         rangeBtn +
         cbBtn +
@@ -336,6 +344,11 @@ function renderCbModal(state) {
   }
   document.getElementById("cb-modal-store").textContent =
     store.name + (store.postcode ? " · " + store.postcode : "");
+  const lastCb = lastCbEntry(store);
+  document.getElementById("cb-last-summary").textContent = lastCb
+    ? "Last saved " + formatDateShort(lastCb.date) + " — Direct Sale NPDs " + lastCb.direct +
+      " · Influence Sales NPDs " + lastCb.influence + " · POS Activation " + lastCb.pos
+    : "No Cycle Brief saved yet for this store.";
   CB_CATEGORIES.forEach(function (cat) {
     document.getElementById("cb-qty-" + cat).textContent = mapUi.cbCounts[cat];
   });
