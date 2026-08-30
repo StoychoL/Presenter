@@ -62,9 +62,15 @@ function hydrateAndSubscribe(uid, email) {
 
   window.FirebaseDb.getDoc(ref).then(function (snap) {
     if (snap.exists()) {
-      Storage.hydrateFromCloud(snap.data());
+      const data = snap.data();
+      Storage.hydrateFromCloud(data);
       Storage.setOwnerUid(uid);
       rerenderIfPossible();
+      // Backfills repEmail on doc that predate that field (or whose stored email is stale) —
+      // pushState() already unconditionally sets repEmail: user.email on every push, so this
+      // reuses that existing pipeline rather than writing directly. Self-heals on next sign-in
+      // rather than retroactively, since there's no way to reach a rep's doc before they do.
+      if (data.repEmail !== email) window.CloudSync.pushState(Storage.loadState());
     } else {
       handleFirstLogin(ref, uid, email);
     }
