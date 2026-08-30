@@ -13,7 +13,22 @@
 
 // reps starts null (distinct from an empty array) so page render() functions can tell "still
 // loading" apart from "loaded, but there are genuinely no rep accounts yet".
-window.ManagerData = { reps: null };
+window.ManagerData = { reps: null, displayName: repDisplayName };
+
+// Turns "tony.lyubenov@diageotrade.co.uk" into "Tony Lyubenov" — reps' emails follow a
+// firstname.lastname@ convention, so this is a display-only formatting of already-fetched data,
+// not a new field. Falls back to the raw email (no "." in the local part) or the uid (no email at
+// all) so a rep record missing repEmail still renders something rather than breaking.
+function repDisplayName(rep) {
+  const email = rep && rep.repEmail;
+  if (!email) return (rep && rep.uid) || "";
+  const local = email.split("@")[0];
+  if (!local) return email;
+  const parts = local.split(".").filter(Boolean).map(function (part) {
+    return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+  });
+  return parts.length ? parts.join(" ") : email;
+}
 
 function rerenderIfPossible() {
   if (typeof window.render === "function") window.render();

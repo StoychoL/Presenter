@@ -136,7 +136,7 @@ function territoryDetailHtml(reps) {
       : '<p class="manager-empty-note">No stores in this rep’s call file.</p>';
     return (
       '<div class="rep-group">' +
-        '<div class="rep-group-head">' + escAttr(rep.repEmail || rep.uid) + "</div>" +
+        '<div class="rep-group-head">' + escAttr(window.ManagerData.displayName(rep)) + "</div>" +
         repStatPanelsHtml(rep) +
         '<div class="rep-store-heading">Stores</div>' +
         storesHtml +
