@@ -110,14 +110,42 @@ window.HomeStats = (function () {
     return d.toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "short" });
   }
 
-  // Coverage this local month, overall and per grade. "Covered" reuses storeStatus()'s green
-  // definition (visitsThisMonth >= CALLFILE_GRADE_CONFIG[grade].visitsRequired) — the exact rule
-  // Call File already shows per store, just aggregated here.
+  // Pure integer month/year arithmetic off todayISO() (not a Date object), so monthsAgo=0 always
+  // produces exactly the same "YYYY-MM" storeStatus() itself would use for "now".
+  function monthKeyOffset(monthsAgo) {
+    const parts = todayISO().slice(0, 7).split("-").map(Number);
+    let year = parts[0];
+    let month = parts[1] - 1 - monthsAgo; // 0-indexed
+    while (month < 0) { month += 12; year -= 1; }
+    return year + "-" + String(month + 1).padStart(2, "0");
+  }
+
+  function monthLabel(monthKey) {
+    const parts = monthKey.split("-").map(Number);
+    return MONTH_ABBR[parts[1] - 1] + " " + parts[0];
+  }
+
+  // Quarters are just months in groups of 3, so this reuses monthKeyOffset rather than
+  // duplicating the year-rollover arithmetic a second time.
+  function quarterKeyOffset(quartersAgo) {
+    return quarterKeyForDate(monthKeyOffset(quartersAgo * 3) + "-01");
+  }
+
+  function quarterLabel(qKey) {
+    const idx = qKey.indexOf("-Q");
+    return "Q" + qKey.slice(idx + 2) + " " + qKey.slice(0, idx);
+  }
+
+  // Coverage for the local month `monthsAgo` months before the current one (0 = this month),
+  // overall and per grade. "Covered" reuses statusForMonth()'s green definition (visits in that
+  // month >= CALLFILE_GRADE_CONFIG[grade].visitsRequired) — the exact rule Call File already shows
+  // per store, just aggregated here for an arbitrary month instead of only "now".
   //
-  // "Partial" (storeStatus() === "amber") is tracked separately as info only — it never adds to
+  // "Partial" (statusForMonth() === "amber") is tracked separately as info only — it never adds to
   // coveredTotal/pct. In practice this only ever fires for Platinum stores (1 of their 2 required
-  // visits done this month); Gold/Silver jump straight red -> green since they only need 1 visit.
-  function monthCoverageStats(stores) {
+  // visits done that month); Gold/Silver jump straight red -> green since they only need 1 visit.
+  function monthCoverageStats(stores, monthsAgo) {
+    const monthKey = monthKeyOffset(monthsAgo || 0);
     const perGrade = {};
     (window.CALLFILE_GRADES || []).forEach(function (g) { perGrade[g] = { covered: 0, total: 0 }; });
 
@@ -130,7 +158,7 @@ window.HomeStats = (function () {
       if (!perGrade[store.grade]) return;
       storeTotal++;
       perGrade[store.grade].total++;
-      const status = storeStatus(store);
+      const status = statusForMonth(store, monthKey);
       if (status === "green") {
         coveredTotal++;
         perGrade[store.grade].covered++;
@@ -139,7 +167,7 @@ window.HomeStats = (function () {
       }
     });
 
-    return { coveredTotal: coveredTotal, partialTotal: partialTotal, storeTotal: storeTotal, perGrade: perGrade };
+    return { coveredTotal: coveredTotal, partialTotal: partialTotal, storeTotal: storeTotal, perGrade: perGrade, monthKey: monthKey };
   }
 
   const CB_CATEGORIES = [
@@ -148,14 +176,17 @@ window.HomeStats = (function () {
     { key: "pos", label: "POS Activation", dot: "grade-dot-pos" }
   ];
 
-  // Sums every store's cbEvents whose date falls in the current calendar quarter — nothing is ever
-  // deleted (see Storage.logCycleBrief), so this is what actually makes the totals "reset" every
-  // quarter: last quarter's entries simply stop matching qKey once today's date rolls over. Mirrors
-  // monthCoverageStats() above, just with quarterKeyForDate() (js/callfile-status.js) instead of
-  // storeStatus()'s implicit monthly bucketing.
-  function cycleBriefStats(stores) {
-    const qKey = currentQuarterKey();
-    const totals = { direct: 0, influence: 0, pos: 0 };
+  // Sums every store's cbEvents whose date falls in the calendar quarter `quartersAgo` quarters
+  // before the current one (0 = this quarter) — nothing is ever deleted (see
+  // Storage.logCycleBrief), so this is what actually makes the totals "reset" every quarter: a
+  // past quarter's entries simply stop matching the *current* qKey once today's date rolls over,
+  // but remain summable here by asking for that quarter specifically. Mirrors monthCoverageStats()
+  // above, just with quarterKeyForDate() (js/callfile-status.js) instead of statusForMonth()'s
+  // implicit monthly bucketing. qKey is included on the returned object purely for the caller to
+  // label the period with (quarterLabel()) — cycleBriefBodyHtml() only reads direct/influence/pos.
+  function cycleBriefStats(stores, quartersAgo) {
+    const qKey = quarterKeyOffset(quartersAgo || 0);
+    const totals = { direct: 0, influence: 0, pos: 0, qKey: qKey };
     storeKeys(stores).forEach(function (key) {
       (stores[key].cbEvents || []).forEach(function (ev) {
         if (quarterKeyForDate(ev.date) !== qKey) return;
@@ -265,6 +296,10 @@ window.HomeStats = (function () {
     formatFullDate: formatFullDate,
     weekStats: weekStats,
     storesVisitedOn: storesVisitedOn,
+    monthKeyOffset: monthKeyOffset,
+    monthLabel: monthLabel,
+    quarterKeyOffset: quarterKeyOffset,
+    quarterLabel: quarterLabel,
     monthCoverageStats: monthCoverageStats,
     cycleBriefStats: cycleBriefStats,
     weekPanelBodyHtml: weekPanelBodyHtml,

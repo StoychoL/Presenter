@@ -11,9 +11,40 @@
 const TERRITORY_LETTERS = ["A", "B", "C", "D", "E"];
 const ALL_LETTERS = "__all__";
 
+// How far each panel's back-arrow can page. WEEKS_BACK matches js/home.js's own rep-dashboard cap
+// (~3 months of weeks). MONTHS_BACK is a literal 3 months. QUARTERS_BACK is 1 because a quarter
+// already *is* 3 months, so "up to 3 months back" only ever allows a single step there.
+const WEEKS_BACK = 12;
+const MONTHS_BACK = 3;
+const QUARTERS_BACK = 1;
+const NAV_CAPS = { weeksAgo: WEEKS_BACK, monthsAgo: MONTHS_BACK, quartersAgo: QUARTERS_BACK };
+
 // Session-only UI state (not persisted): which territory's detail section is expanded, if any,
-// and which letter the grid is currently filtered to.
-const managerUi = { openTerritory: null, letterFilter: ALL_LETTERS };
+// which letter the grid is currently filtered to, and each rep's current This Week/This
+// Month/Cycle Brief paging position (keyed by uid, since the detail view can show several reps'
+// panels at once and each pages independently).
+const managerUi = { openTerritory: null, letterFilter: ALL_LETTERS, repNav: {} };
+
+function getRepNav(uid) {
+  if (!managerUi.repNav[uid]) managerUi.repNav[uid] = { weeksAgo: 0, monthsAgo: 0, quartersAgo: 0 };
+  return managerUi.repNav[uid];
+}
+
+// Mirrors the `.week-nav`/`.week-nav-btn`/`.week-range` markup index.html already uses for the
+// rep dashboard's week prev/next arrows — those classes are already generic in css/styles.css, so
+// this reuses them verbatim for This Week, This Month, and Cycle Brief alike with no new CSS.
+function navArrowsHtml(uid, field, current, label) {
+  const cap = NAV_CAPS[field];
+  return (
+    '<div class="week-nav">' +
+      '<button type="button" class="week-nav-btn" data-nav="' + field + '" data-dir="prev" data-uid="' + escAttr(uid) + '"' +
+        (current >= cap ? " disabled" : "") + ' aria-label="Previous period">‹</button>' +
+      '<span class="week-range">' + escAttr(label) + "</span>" +
+      '<button type="button" class="week-nav-btn" data-nav="' + field + '" data-dir="next" data-uid="' + escAttr(uid) + '"' +
+        (current === 0 ? " disabled" : "") + ' aria-label="Next period">›</button>' +
+    "</div>"
+  );
+}
 
 function escAttr(str) {
   const div = document.createElement("div");
@@ -72,35 +103,35 @@ function territoryCardHtml(code, reps, isActive) {
 }
 
 // This Week / This Month / Cycle Brief, reusing the exact same stat math and HTML builders the
-// rep's own dashboard uses (window.HomeStats, js/home-stats.js) — a fixed "right now" snapshot,
-// deliberately without the rep dashboard's week prev/next paging or click-a-day popup (manager
-// view is read-only overview, not an interactive rep tool). weekStats is always called with
-// weeksAgo=0 for exactly that reason.
+// rep's own dashboard uses (window.HomeStats, js/home-stats.js), each independently pageable up to
+// ~3 months back via getRepNav(rep.uid) + navArrowsHtml() — see the click handler in
+// DOMContentLoaded below for how the paging state actually changes.
 function repStatPanelsHtml(rep) {
   const stores = (rep.callfile && rep.callfile.stores) || {};
-  const wk = window.HomeStats.weekStats(stores, 0);
-  const mo = window.HomeStats.monthCoverageStats(stores);
-  const cb = window.HomeStats.cycleBriefStats(stores);
+  const nav = getRepNav(rep.uid);
+  const wk = window.HomeStats.weekStats(stores, nav.weeksAgo);
+  const mo = window.HomeStats.monthCoverageStats(stores, nav.monthsAgo);
+  const cb = window.HomeStats.cycleBriefStats(stores, nav.quartersAgo);
   return (
     '<div class="dash-stat-grid rep-stat-grid">' +
       '<section class="week-panel" aria-label="This week’s visit activity">' +
         '<div class="week-panel-head">' +
           '<div class="panel-head-title"><h3>This Week</h3></div>' +
-          '<span class="week-range">' + escAttr(window.HomeStats.formatWeekRange(wk.monday, wk.friday)) + "</span>" +
+          navArrowsHtml(rep.uid, "weeksAgo", nav.weeksAgo, window.HomeStats.formatWeekRange(wk.monday, wk.friday)) +
         "</div>" +
         window.HomeStats.weekPanelBodyHtml(wk) +
       "</section>" +
-      '<section class="month-panel" aria-label="Call file coverage this month">' +
+      '<section class="month-panel" aria-label="Call file coverage">' +
         '<div class="month-panel-head">' +
           '<div class="panel-head-title"><h3>This Month</h3></div>' +
-          '<span class="month-sub">Call File coverage</span>' +
+          navArrowsHtml(rep.uid, "monthsAgo", nav.monthsAgo, window.HomeStats.monthLabel(mo.monthKey)) +
         "</div>" +
         window.HomeStats.monthPanelBodyHtml(mo) +
       "</section>" +
-      '<section class="week-panel cycle-panel" aria-label="Cycle Brief activity this quarter">' +
+      '<section class="week-panel cycle-panel" aria-label="Cycle Brief activity">' +
         '<div class="week-panel-head">' +
           '<div class="panel-head-title"><h3>Cycle Brief</h3></div>' +
-          '<span class="month-sub">This quarter</span>' +
+          navArrowsHtml(rep.uid, "quartersAgo", nav.quartersAgo, window.HomeStats.quarterLabel(cb.qKey)) +
         "</div>" +
         window.HomeStats.cycleBriefBodyHtml(cb) +
       "</section>" +
@@ -243,6 +274,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
   document.getElementById("territory-detail-close").addEventListener("click", function () {
     managerUi.openTerritory = null;
+    render();
+  });
+
+  // Delegated on the container since territory-detail-body's innerHTML is fully rebuilt every
+  // render (same pattern as the territory-grid listener above) — one listener survives that.
+  document.getElementById("territory-detail-body").addEventListener("click", function (e) {
+    const btn = e.target.closest("button[data-nav]");
+    if (!btn) return;
+    const nav = getRepNav(btn.dataset.uid);
+    const field = btn.dataset.nav;
+    const cap = NAV_CAPS[field];
+    nav[field] = btn.dataset.dir === "prev" ? Math.min(cap, nav[field] + 1) : Math.max(0, nav[field] - 1);
     render();
   });
 

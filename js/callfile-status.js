@@ -26,13 +26,18 @@ function currentQuarterKey() {
   return quarterKeyForDate(todayISO());
 }
 
-function storeStatus(store) {
+// Parameterized on an explicit monthKey ("YYYY-MM") so callers can compute coverage for a past
+// month too (manager dashboard's This Month paging, js/home-stats.js), not just "now".
+function statusForMonth(store, monthKey) {
   const cfg = window.CALLFILE_GRADE_CONFIG[store.grade] || { visitsRequired: 1 };
-  const monthKey = todayISO().slice(0, 7);
   const visitsThisMonth = store.visits.filter(function (d) { return d.slice(0, 7) === monthKey; }).length;
   if (visitsThisMonth <= 0) return "red";
   if (visitsThisMonth < cfg.visitsRequired) return "amber";
   return "green";
+}
+
+function storeStatus(store) {
+  return statusForMonth(store, todayISO().slice(0, 7));
 }
 
 function statusLabel(status) {
