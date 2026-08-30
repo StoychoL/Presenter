@@ -52,6 +52,8 @@ function render() {
   }).join("");
 
   document.getElementById("cc-products").innerHTML = productRowsHtml(state);
+
+  document.getElementById("cc-email").value = cc.sendEmail || "";
 }
 
 function collectAndSave() {
@@ -68,11 +70,53 @@ function collectAndSave() {
     postcode: document.getElementById("cc-postcode").value,
     depotName: document.getElementById("cc-depot-name").value,
     region: document.getElementById("cc-region").value || null,
-    productStatus: productStatus
+    productStatus: productStatus,
+    sendEmail: document.getElementById("cc-email").value
   };
 
   Storage.saveCashCarryDraft(fields);
   render();
+}
+
+// Plain-text summary for the mailto: body. Lists every product (not just answered ones) so a gap
+// itself is visible information, not silently dropped — see CLAUDE.md's Cash & Carry Form section.
+function emailBodyText(state) {
+  const cc = state.cashCarry;
+  const statuses = cc.productStatus || {};
+  const lines = [
+    "SE Name: " + (cc.seName || ""),
+    "Territory: " + (cc.territoryName || ""),
+    "C&C Visited: " + (cc.chain || "") + (cc.chain === "Other" && cc.otherChainText ? " (" + cc.otherChainText + ")" : ""),
+    "Postcode: " + (cc.postcode || ""),
+    "Depot Name: " + (cc.depotName || ""),
+    "Region: " + (cc.region || ""),
+    "",
+    "Product stock statuses:"
+  ];
+  window.CASHCARRY_PRODUCTS.forEach(function (p) {
+    lines.push(p.name + ": " + (statuses[p.id] || "Not answered"));
+  });
+  return lines.join("\r\n");
+}
+
+function openSendEmail() {
+  const emailInput = document.getElementById("cc-email");
+  if (!emailInput.value || !emailInput.checkValidity()) {
+    emailInput.reportValidity();
+    emailInput.focus();
+    return;
+  }
+
+  collectAndSave();
+
+  const state = Storage.loadState();
+  const cc = state.cashCarry;
+  const subject = "Cash & Carry Stock Report — " + (cc.depotName || cc.chain || "") + " — " + new Date().toLocaleDateString("en-GB");
+  const body = emailBodyText(state);
+
+  window.location.href = "mailto:" + encodeURIComponent(emailInput.value) +
+    "?subject=" + encodeURIComponent(subject) +
+    "&body=" + encodeURIComponent(body);
 }
 
 function flashSaved() {
@@ -93,6 +137,8 @@ document.addEventListener("DOMContentLoaded", function () {
     collectAndSave();
     flashSaved();
   });
+
+  document.getElementById("cc-send-btn").addEventListener("click", openSendEmail);
 
   // Belt-and-suspenders: a rep who jumps straight to the official form without tapping "Save
   // answers" first still gets this visit's edits captured — the anchor's default new-tab

@@ -6,7 +6,7 @@
 
 const STORAGE_KEY = "diageoPresenter";
 const OWNER_KEY = "diageoPresenterUid";
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 function defaultState() {
   const prices = {};
@@ -56,6 +56,7 @@ function defaultState() {
       depotName: "",
       region: null,
       productStatus: {},
+      sendEmail: "",
       updatedAt: null
     },
     // Cash & Carry depot pins added from Call File ("Add Cash & Carry") and plotted permanently
@@ -603,6 +604,7 @@ function saveCashCarryDraft(fields) {
     depotName: (fields.depotName || "").trim(),
     region: fields.region || null,
     productStatus: fields.productStatus || {},
+    sendEmail: (fields.sendEmail || "").trim(),
     updatedAt: new Date().toISOString()
   };
   saveState(state);
