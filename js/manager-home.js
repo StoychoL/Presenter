@@ -5,8 +5,15 @@
 // same function Call File and the rep Map already share — so the compliance rule can't drift
 // between the rep-facing pages and this manager view.
 
-// Session-only UI state (not persisted): which territory's detail section is expanded, if any.
-const managerUi = { openTerritory: null };
+// Fixed A-E set enforced by Call File's "Set Territory" validation regex (js/callfile.js,
+// /^[A-E]\d{3}$/i) — always shown as dropdown options regardless of which letters current reps
+// actually have, so a manager can pre-select a letter before any rep has claimed it.
+const TERRITORY_LETTERS = ["A", "B", "C", "D", "E"];
+const ALL_LETTERS = "__all__";
+
+// Session-only UI state (not persisted): which territory's detail section is expanded, if any,
+// and which letter the grid is currently filtered to.
+const managerUi = { openTerritory: null, letterFilter: ALL_LETTERS };
 
 function escAttr(str) {
   const div = document.createElement("div");
@@ -152,6 +159,17 @@ function renderTerritoryDetail(groups) {
   section.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
+// Options never change (fixed A-E list), so this only needs to run once on page load, not on
+// every render() — unlike the Map page's dynamic populateTerritoryFilter(), which rebuilds its
+// list from whatever codes currently exist.
+function populateLetterFilter(selected) {
+  const select = document.getElementById("territory-letter-filter");
+  select.innerHTML = ['<option value="' + ALL_LETTERS + '">All letters</option>']
+    .concat(TERRITORY_LETTERS.map(function (l) { return '<option value="' + l + '">' + l + "</option>"; }))
+    .join("");
+  select.value = selected;
+}
+
 function render() {
   const reps = window.ManagerData.reps;
   const grid = document.getElementById("territory-grid");
@@ -174,11 +192,23 @@ function render() {
   }
 
   const groups = groupByTerritory(reps);
-  const codes = Object.keys(groups).sort(function (a, b) { return a < b ? -1 : a > b ? 1 : 0; });
+  const allCodes = Object.keys(groups).sort(function (a, b) { return a < b ? -1 : a > b ? 1 : 0; });
+
+  if (!allCodes.length) {
+    grid.innerHTML = "";
+    empty.textContent = "No reps have an assigned territory yet — set one via Call File's “Set Territory” button.";
+    empty.classList.remove("hidden");
+    renderTerritoryDetail({});
+    return;
+  }
+
+  const codes = managerUi.letterFilter === ALL_LETTERS
+    ? allCodes
+    : allCodes.filter(function (c) { return c.charAt(0).toUpperCase() === managerUi.letterFilter; });
 
   if (!codes.length) {
     grid.innerHTML = "";
-    empty.textContent = "No reps have an assigned territory yet — set one via Call File's “Set Territory” button.";
+    empty.textContent = "No reps assigned to territory letter " + managerUi.letterFilter + " yet.";
     empty.classList.remove("hidden");
     renderTerritoryDetail({});
     return;
@@ -192,7 +222,15 @@ function render() {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
+  populateLetterFilter(managerUi.letterFilter);
   render();
+
+  document.getElementById("territory-letter-filter").addEventListener("change", function (e) {
+    managerUi.letterFilter = e.target.value;
+    // An open detail card whose code no longer matches the new filter shouldn't stay stranded open.
+    managerUi.openTerritory = null;
+    render();
+  });
 
   document.getElementById("territory-grid").addEventListener("click", function (e) {
     const btn = e.target.closest('button[data-action="open-territory"]');
