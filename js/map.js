@@ -24,12 +24,15 @@ const mapState = {
   markersByKey: {},        // store key -> its current L.circleMarker, rebuilt each plotMarkers() call
   openPopupKey: null,       // store key whose popup was last opened, so it can be reopened after a
                              // logVisit-triggered marker rebuild (see reopenPopupIfNeeded)
-  ccMarkerLayer: null       // separate L.layerGroup() for permanent Cash & Carry pins — kept out of
+  ccMarkerLayer: null,      // separate L.layerGroup() for permanent Cash & Carry pins — kept out of
                              // markerLayer entirely, since that layer is cleared+rebuilt on every
                              // plotMarkers() call (visits, cycle brief, range saves, geocoding...),
                              // which would otherwise wipe C&C pins constantly. C&C geocoding shares
                              // inFlightPostcodes above with store postcodes — it's just a Set of
                              // normalized postcode strings, no coupling to store shape.
+  ccMarkersById: {},        // C&C location id -> its current L.circleMarker, mirrors markersByKey
+  ccOpenPopupId: null        // C&C location id whose popup was last opened, mirrors openPopupKey —
+                             // used to reopen it after a logCcVisit-triggered marker rebuild
 };
 
 // Session-only UI state (not persisted): which store's "Log a visit" date-picker modal is open,
@@ -39,7 +42,8 @@ const mapState = {
 const mapUi = {
   logKey: null, rangeKey: null, rangeIndex: 0,
   rangeEditing: false, rangeEditChecked: null, rangeNewTier: null,
-  cbKey: null, cbCounts: null
+  cbKey: null, cbCounts: null,
+  ccLogKey: null
 };
 
 const USER_LOCATION_COLOR = "#1a73e8"; // distinct from the red/amber/green status palette
@@ -188,13 +192,18 @@ function popupHtml(store, status, key) {
   );
 }
 
-// Label-only, unlike popupHtml()'s store popup — no buttons, so no popupopen dispatch wiring
-// needed for these markers.
+// Shows last/next visit dates and a lock-a-date action, mirroring popupHtml()'s store popup —
+// see plotCcMarkers() for the popupopen dispatch wiring this button needs.
 function ccPopupHtml(loc) {
   return (
     '<div class="map-popup">' +
       '<div class="map-popup-name">' + escAttr(loc.name) + "</div>" +
       '<div class="map-popup-row">' + escAttr(loc.postcode) + "</div>" +
+      '<div class="map-popup-row">Last visit: ' + formatDateShort(loc.lastVisitDate) + "</div>" +
+      '<div class="map-popup-row">Next visit: ' + formatDateShort(loc.nextVisitDate) + "</div>" +
+      '<div class="map-popup-actions">' +
+        '<button class="btn small" data-action="cc-log" data-id="' + escAttr(loc.id) + '">🔒 Log visit</button>' +
+      "</div>" +
     "</div>"
   );
 }
@@ -221,6 +230,33 @@ function renderVisitModal(state) {
   }
   document.getElementById("visit-modal-store").textContent =
     store.name + (store.postcode ? " · " + store.postcode : "");
+  modal.classList.remove("hidden");
+}
+
+function openCcVisitModal(id) {
+  mapUi.ccLogKey = id;
+  renderCcVisitModal(Storage.loadState());
+  const dateInput = document.getElementById("cc-visit-date-input");
+  dateInput.max = todayISO();
+  dateInput.value = todayISO();
+}
+
+function closeCcVisitModal() {
+  mapUi.ccLogKey = null;
+  renderCcVisitModal(Storage.loadState());
+}
+
+function renderCcVisitModal(state) {
+  const modal = document.getElementById("cc-visit-modal");
+  const loc = mapUi.ccLogKey
+    ? (state.ccLocations || []).find(function (l) { return l.id === mapUi.ccLogKey; })
+    : null;
+  if (!loc) {
+    modal.classList.add("hidden");
+    return;
+  }
+  document.getElementById("cc-visit-modal-store").textContent =
+    loc.name + (loc.postcode ? " · " + loc.postcode : "");
   modal.classList.remove("hidden");
 }
 
@@ -511,6 +547,7 @@ function plotMarkers(entries, cache) {
 // markers, C&C pins just sit on whatever view is already showing.
 function plotCcMarkers(ccLocations, cache) {
   mapState.ccMarkerLayer.clearLayers();
+  mapState.ccMarkersById = {};
   const placeable = [];
   const groups = new Map();
 
@@ -534,14 +571,36 @@ function plotCcMarkers(ccLocations, cache) {
   });
 
   placeable.forEach(function (item) {
-    L.circleMarker([item.plotLat, item.plotLng], {
+    const loc = item.loc;
+    const marker = L.circleMarker([item.plotLat, item.plotLng], {
       radius: 9,
       weight: 2,
       color: "#fff",
       fillColor: CC_LOCATION_COLOR,
       fillOpacity: 0.95
-    }).bindPopup(ccPopupHtml(item.loc)).addTo(mapState.ccMarkerLayer);
+    }).bindPopup(ccPopupHtml(loc));
+
+    marker.on("popupopen", function () {
+      mapState.ccOpenPopupId = loc.id;
+      const popupEl = marker.getPopup().getElement();
+      // Assignment (not addEventListener), same reasoning as the store marker's popupopen handler
+      // above — avoids accumulating duplicate listeners on reopen without an intervening render().
+      popupEl.onclick = function (evt) {
+        const logBtn = evt.target.closest('button[data-action="cc-log"]');
+        if (logBtn) openCcVisitModal(logBtn.dataset.id);
+      };
+    });
+
+    marker.addTo(mapState.ccMarkerLayer);
+    mapState.ccMarkersById[loc.id] = marker;
   });
+}
+
+// Reopens the popup for the C&C pin the rep was just looking at, after a logCcVisit-triggered
+// renderCcMarkers() has cleared+rebuilt the layer. Mirrors reopenPopupIfNeeded() for store markers.
+function reopenCcPopupIfNeeded() {
+  const marker = mapState.ccOpenPopupId ? mapState.ccMarkersById[mapState.ccOpenPopupId] : null;
+  if (marker) marker.openPopup();
 }
 
 // Self-contained geocode-and-plot flow for C&C locations, called unconditionally at the top of
@@ -727,6 +786,25 @@ document.addEventListener("DOMContentLoaded", function () {
     reopenPopupIfNeeded();
   });
 
+  document.getElementById("cc-visit-modal-close").addEventListener("click", closeCcVisitModal);
+  document.getElementById("cc-visit-cancel-btn").addEventListener("click", closeCcVisitModal);
+
+  document.getElementById("cc-visit-modal").addEventListener("click", function (e) {
+    if (e.target.id === "cc-visit-modal") closeCcVisitModal();
+  });
+
+  document.getElementById("cc-visit-confirm-btn").addEventListener("click", function () {
+    const id = mapUi.ccLogKey;
+    if (!id) return;
+    const dateVal = document.getElementById("cc-visit-date-input").value;
+    if (!dateVal) { alert("Pick a date first."); return; }
+    Storage.logCcVisit(id, dateVal);
+    mapUi.ccLogKey = null;
+    renderCcVisitModal(Storage.loadState());
+    renderCcMarkers(Storage.loadState());
+    reopenCcPopupIfNeeded();
+  });
+
   document.getElementById("cb-modal-close").addEventListener("click", closeCbModal);
   document.getElementById("cb-cancel-btn").addEventListener("click", closeCbModal);
 
@@ -785,5 +863,6 @@ document.addEventListener("DOMContentLoaded", function () {
     if (e.key === "Escape" && mapUi.logKey) closeVisitModal();
     if (e.key === "Escape" && mapUi.rangeKey) closeRangeModal();
     if (e.key === "Escape" && mapUi.cbKey) closeCbModal();
+    if (e.key === "Escape" && mapUi.ccLogKey) closeCcVisitModal();
   });
 });

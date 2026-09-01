@@ -52,6 +52,20 @@
     </div>
   </div>
 
+  <div class="modal-backdrop hidden" id="cc-visit-modal">
+    <div class="modal-card modal-card-narrow">
+      <button class="modal-close" id="cc-visit-modal-close" aria-label="Close">&times;</button>
+      <h2>Log a Cash &amp; Carry visit</h2>
+      <p class="modal-store-name" id="cc-visit-modal-store"></p>
+      <label class="field-label" for="cc-visit-date-input">Visit date</label>
+      <input type="date" id="cc-visit-date-input" class="date-input" />
+      <div class="modal-actions">
+        <button class="btn secondary" id="cc-visit-cancel-btn" type="button">Cancel</button>
+        <button class="btn" id="cc-visit-confirm-btn" type="button">Log visit</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-backdrop hidden" id="range-modal">
     <div class="modal-card modal-card-narrow modal-card-wide">
       <button class="modal-close" id="range-modal-close" aria-label="Close">&times;</button>

@@ -505,6 +505,23 @@ function deleteCcLocation(id) {
   return state;
 }
 
+// Fixed 2-week cadence, independent of CALLFILE_GRADE_CONFIG's per-grade cadences — C&C depots
+// aren't call-file stores and don't have a grade. Only a single lastVisitDate/nextVisitDate pair
+// is kept (overwritten on each log), not a visits history array like callfile stores.
+const CC_VISIT_CADENCE_WEEKS = 2;
+
+function logCcVisit(id, dateStr) {
+  const state = loadState();
+  const loc = state.ccLocations.find(function (l) { return l.id === id; });
+  if (!loc) return state;
+  loc.lastVisitDate = dateStr;
+  const next = new Date(dateStr);
+  next.setDate(next.getDate() + CC_VISIT_CADENCE_WEEKS * 7);
+  loc.nextVisitDate = next.toISOString().slice(0, 10);
+  saveState(state);
+  return state;
+}
+
 // Snapshots the Partnership Program checklist state onto a store so a rep can compare visits.
 // Keeps only the 2 most recent, newest first — there's no need for unlimited history here.
 function savePPSnapshot(key, snapshot) {
@@ -654,6 +671,7 @@ window.Storage = {
   deleteStore: deleteStore,
   addCcLocation: addCcLocation,
   deleteCcLocation: deleteCcLocation,
+  logCcVisit: logCcVisit,
   setCallfileGrade: setCallfileGrade,
   logVisit: logVisit,
   logCycleBrief: logCycleBrief,
