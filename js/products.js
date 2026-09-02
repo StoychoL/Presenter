@@ -131,6 +131,8 @@ document.addEventListener("DOMContentLoaded", function () {
       if (!isNaN(price) && price >= 0) {
         Storage.setPrice(id, wholesaler, price);
         render();
+        const tile = document.querySelector('.tile[data-id="' + id + '"]');
+        if (tile) tile.scrollIntoView({ behavior: "smooth", block: "center" });
       }
     } else if (action === "unit") {
       Storage.setUnit(id, btn.dataset.unit);
