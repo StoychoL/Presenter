@@ -459,6 +459,7 @@ main {
 .grade-dot-direct { background: var(--accent); }
 .grade-dot-influence { background: var(--gold); }
 .grade-dot-pos { background: var(--good); }
+.grade-dot-total { background: var(--accent-dark); }
 
 .grade-pill-name {
   font-size: 12px;

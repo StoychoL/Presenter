@@ -77,7 +77,7 @@ function formatDateShort(iso) {
 
 function cbSummaryText(entry) {
   return "Last CB " + formatDateShort(entry.date) + " — Direct " + entry.direct +
-    " · Influence " + entry.influence + " · POS " + entry.pos;
+    " · Influence " + entry.influence + " · Future Influence " + entry.pos;
 }
 
 function storeRowHtml(key, store) {
@@ -389,7 +389,7 @@ function renderCbModal(state) {
   const lastCb = lastCbEntry(store);
   document.getElementById("cb-last-summary").textContent = lastCb
     ? "Last saved " + formatDateShort(lastCb.date) + " — Direct Sale NPDs " + lastCb.direct +
-      " · Influence Sales NPDs " + lastCb.influence + " · POS Activation " + lastCb.pos
+      " · Influence Sales NPDs " + lastCb.influence + " · Future Influence Sales NPDs " + lastCb.pos
     : "No Cycle Brief saved yet for this store.";
   CB_CATEGORIES.forEach(function (cat) {
     document.getElementById("cb-qty-" + cat).textContent = callfileUi.cbCounts[cat];

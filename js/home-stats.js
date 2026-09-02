@@ -173,8 +173,12 @@ window.HomeStats = (function () {
   const CB_CATEGORIES = [
     { key: "direct", label: "Direct Sale NPDs", dot: "grade-dot-direct" },
     { key: "influence", label: "Influence Sales NPDs", dot: "grade-dot-influence" },
-    { key: "pos", label: "POS Activation", dot: "grade-dot-pos" }
+    { key: "pos", label: "Future Influence Sales NPDs", dot: "grade-dot-pos" }
   ];
+
+  // Direct + Influence only — Future Influence Sales NPDs (the "pos" key) is a projection, not a
+  // completed NPD sale, so it's deliberately excluded from this total.
+  const TOTAL_NPDS_CAT = { label: "Total NPDs", dot: "grade-dot-total" };
 
   // Sums every store's cbEvents whose date falls in the calendar quarter `quartersAgo` quarters
   // before the current one (0 = this quarter) — nothing is ever deleted (see
@@ -183,7 +187,8 @@ window.HomeStats = (function () {
   // but remain summable here by asking for that quarter specifically. Mirrors monthCoverageStats()
   // above, just with quarterKeyForDate() (js/callfile-status.js) instead of statusForMonth()'s
   // implicit monthly bucketing. qKey is included on the returned object purely for the caller to
-  // label the period with (quarterLabel()) — cycleBriefBodyHtml() only reads direct/influence/pos.
+  // label the period with (quarterLabel()) — cycleBriefBodyHtml() reads direct/influence/pos plus
+  // the derived totalNpds (direct + influence only).
   function cycleBriefStats(stores, quartersAgo) {
     const qKey = quarterKeyOffset(quartersAgo || 0);
     const totals = { direct: 0, influence: 0, pos: 0, qKey: qKey };
@@ -195,6 +200,7 @@ window.HomeStats = (function () {
         totals.pos += ev.pos;
       });
     });
+    totals.totalNpds = totals.direct + totals.influence;
     return totals;
   }
 
@@ -209,7 +215,15 @@ window.HomeStats = (function () {
           '<span class="grade-pill-frac">' + totals[cat.key] + "</span>" +
         "</div>"
       );
-    }).join("");
+    }).join("") + (
+      '<div class="grade-pill">' +
+        '<div class="grade-pill-top">' +
+          '<span class="grade-dot ' + TOTAL_NPDS_CAT.dot + '"></span>' +
+          '<span class="grade-pill-name">' + TOTAL_NPDS_CAT.label + "</span>" +
+        "</div>" +
+        '<span class="grade-pill-frac">' + totals.totalNpds + "</span>" +
+      "</div>"
+    );
     return '<div class="grade-breakdown">' + pills + "</div>";
   }
 
