@@ -59,109 +59,137 @@ input:focus-visible {
 }
 
 /* ---------- App shell / nav ---------- */
-.app-header {
-  position: sticky;
-  top: 0;
-  z-index: 40;
+/* Rep-side left sidebar, parallel to the manager area's .manager-shell (js/manager-nav.js) —
+   same shell/sidebar/account layout, kept as a separate class family since this is a different,
+   unrelated account type with its own 6-page nav (js/nav.js). */
+.rep-shell {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  padding: 10px 16px;
+  align-items: flex-start;
+  min-height: 100vh;
 }
 
-.app-header .brand {
+.rep-sidebar {
+  flex: none;
+  width: 220px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.rep-sidebar .brand {
   font-weight: 800;
   letter-spacing: 0.04em;
   color: var(--accent-dark);
   text-decoration: none;
   font-size: 20px;
-  margin-right: auto;
+  margin-bottom: 20px;
 }
 
-.app-nav {
+.rep-sidebar-nav {
   display: flex;
-  gap: 6px;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.app-nav a {
-  display: inline-flex;
+.rep-sidebar-nav a {
+  display: flex;
   align-items: center;
   min-height: var(--tap);
-  padding: 0 16px;
-  border-radius: 999px;
+  padding: 0 14px;
+  border-radius: 12px;
   text-decoration: none;
   color: var(--ink-soft);
   font-weight: 600;
-  white-space: nowrap;
 }
 
-.app-nav a.active {
+.rep-sidebar-nav a.active {
   background: var(--accent);
   color: #fff;
 }
 
-.rep-menu-wrap {
-  position: relative;
+.rep-account {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
 
-.rep-menu-toggle {
-  width: var(--tap);
-  height: var(--tap);
-  border-radius: 50%;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  color: var(--ink-soft);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.rep-menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  min-width: 200px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  z-index: 30;
-}
-
-.rep-menu.hidden {
-  display: none;
-}
-
-.rep-menu .rep-email {
+.rep-account .rep-email {
   color: var(--ink-soft);
   font-size: 13px;
-  padding: 8px 8px 10px;
-  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  word-break: break-all;
 }
 
-.rep-menu .rep-email:empty {
-  display: none;
-}
+.rep-account .rep-email:empty { display: none; }
 
-.rep-menu .rep-logout {
-  background: none;
+.rep-account .rep-logout {
+  width: 100%;
+  min-height: var(--tap);
+  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
   color: var(--ink);
   font-size: 14px;
   font-weight: 600;
-  text-align: left;
-  min-height: var(--tap);
-  padding: 0 8px;
-  border-radius: 8px;
 }
 
-.rep-menu .rep-logout:hover {
-  background: var(--bg);
+.rep-account .rep-logout:hover { background: var(--border); }
+
+.rep-main {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .rep-shell { flex-direction: column; align-items: stretch; }
+
+  .rep-sidebar {
+    position: sticky;
+    width: auto;
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 16px;
+  }
+
+  .rep-sidebar .brand { margin-bottom: 0; }
+
+  /* Rep sidebar has 6 links (vs. the manager sidebar's 2), so unlike .manager-sidebar-nav this
+     needs its own full-width row (flex-basis: 100% forces the wrap) and to wrap onto multiple
+     lines itself, rather than trying to sit alongside the brand/account and overflowing the
+     viewport width. */
+  .rep-sidebar-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    flex-basis: 100%;
+  }
+
+  .rep-account {
+    margin-top: 0;
+    margin-left: auto;
+    padding-top: 0;
+    border-top: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .rep-account .rep-email { padding-bottom: 0; }
+  .rep-account .rep-logout { width: auto; padding: 0 14px; }
+
+  .summary-bar,
+  .reset-bar {
+    left: 0;
+  }
 }
 
 main {
@@ -731,7 +759,7 @@ main {
 /* ---------- Sticky order summary (Products) ---------- */
 .summary-bar {
   position: fixed;
-  left: 0;
+  left: 220px;
   right: 0;
   bottom: 0;
   z-index: 30;
@@ -787,7 +815,7 @@ main {
 
 .progress-badge {
   position: fixed;
-  top: 70px;
+  top: 12px;
   right: 12px;
   z-index: 25;
   background: var(--surface);
@@ -839,7 +867,7 @@ main {
 
 .reset-bar {
   position: fixed;
-  left: 0;
+  left: 220px;
   right: 0;
   bottom: 0;
   z-index: 30;
@@ -1598,7 +1626,7 @@ main.deck-page {
 /* ---------- Partnership Program Pitch Deck ---------- */
 main.pp-deck-page {
   max-width: none;
-  min-height: calc(100vh - 64px);
+  min-height: 100vh;
   background: #100e13;
   display: flex;
   align-items: center;
@@ -1997,6 +2025,10 @@ main.map-page {
   z-index: 1;
 }
 
+.rep-main #map-container {
+  height: calc(100vh - 90px);
+}
+
 .leaflet-popup-content-wrapper {
   border-radius: 12px;
 }
@@ -2044,7 +2076,7 @@ main.map-page {
 }
 
 /* ---------- Manager area (manager-dashboard.html / manager-map.html) ---------- */
-/* Fully separate shell from .app-header's horizontal top bar (js/nav.js) — the manager area is a
+/* Fully separate shell from .rep-shell's sidebar (js/nav.js) — the manager area is a
    parallel, unrelated account type with its own left-hand sidebar nav (js/manager-nav.js). */
 
 .manager-shell {

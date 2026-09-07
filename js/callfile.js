@@ -572,10 +572,10 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // "More actions" dropdown holding Upload Secondary Territory/Add store/Add Cash & Carry/Reset
-  // all visits — mirrors js/nav.js's rep-menu toggle/outside-click/Escape pattern exactly. Each
-  // item's own click/change handler (openAddStoreModal, openAddCcModal, the reset confirm, the
-  // file input) is wired independently elsewhere in this file; this block only opens/closes the
-  // panel itself and dismisses it whenever any item inside is clicked.
+  // all visits — a toggle/outside-click/Escape popover pattern. Each item's own click/change
+  // handler (openAddStoreModal, openAddCcModal, the reset confirm, the file input) is wired
+  // independently elsewhere in this file; this block only opens/closes the panel itself and
+  // dismisses it whenever any item inside is clicked.
   const cfMenuToggle = document.getElementById("callfile-menu-toggle");
   const cfMenu = document.getElementById("callfile-menu");
 
