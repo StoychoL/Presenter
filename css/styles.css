@@ -2106,6 +2106,14 @@ body.page-map .manager-main {
 }
 
 body.page-map main.map-page {
+  /* Cancels the shared `main` rule's `margin: 0 auto`. Auto side margins stop a flex item from
+     stretching on the cross axis, so as a flex-column child this collapsed to its shrink-to-fit
+     width and sat centred with dead gutters either side — 589px of an available 860px on a
+     landscape tablet, and only 338px on the manager map, whose toolbar holds a narrower territory
+     <select>. main.map-page's `max-width: none` doesn't cover this: width isn't the constraint
+     here, the auto margins are. */
+  margin: 0;
+  width: 100%;
   flex: 1;
   min-height: 0;
   display: flex;
