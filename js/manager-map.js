@@ -249,6 +249,9 @@ function render() {
 document.addEventListener("DOMContentLoaded", function () {
   render();
 
+  // Same full-viewport-Leaflet zoom trap as the rep map — see js/map-zoom-guard.js.
+  installPageZoomGuard();
+
   document.getElementById("territory-filter").addEventListener("change", function (e) {
     currentFilter = e.target.value;
     mapState.hasFitBounds = false;

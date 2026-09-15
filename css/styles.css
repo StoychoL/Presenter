@@ -48,6 +48,18 @@ input {
   font-size: inherit;
 }
 
+/* Drops the browser's double-tap-to-zoom (and the legacy 300ms tap delay) for gestures that start
+   on an interactive element, while leaving ordinary panning and pinch-zoom alone. Repeatedly
+   tapping one spot — the Cycle Brief modal's +/- steppers, Product Presenter's quantity steppers —
+   otherwise reads as a double-tap and zooms the *page*, which strands the rep on the Map tab:
+   the sidebar is laid out in the layout viewport so it scrolls out of the zoomed visual viewport,
+   and Leaflet's own `touch-action: none` means the near-full-screen map swallows the pinch-out
+   that would undo it. See js/map-zoom-guard.js for the recovery half of that fix. Deliberately
+   NOT applied to .leaflet-container, which needs its own touch-action: none. */
+button, a, label, input, select, summary, .tick-row {
+  touch-action: manipulation;
+}
+
 /* Single shared focus ring for every interactive element — keyboard/assistive-tech users
    otherwise get each browser's inconsistent default outline, which also clashes with the
    accent color. :focus-visible so mouse/touch clicks don't show a ring, only keyboard focus. */
@@ -1409,6 +1421,10 @@ main {
   max-width: 360px;
   max-height: 90vh;
   overflow-y: auto;
+  /* Scrolling a long modal (the Range checklist especially) past its end otherwise chains the
+     gesture through to whatever is behind it — on the Map page that silently pans the map out
+     from under the rep. */
+  overscroll-behavior: contain;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -2057,16 +2073,43 @@ main.map-page {
 
 .empty-note.hidden { display: none; }
 
+/* Sized by body.page-map's flex column below rather than a fixed height — see that block. */
 #map-container {
   width: 100%;
-  height: calc(100vh - 132px);
+  flex: 1;
+  min-height: 0;
   margin-top: 12px;
   position: relative;
   z-index: 1;
 }
 
-.rep-main #map-container {
-  height: calc(100vh - 90px);
+/* The map page is exactly one viewport tall, with the map absorbing whatever the toolbar/notice
+   above it don't use. This replaces a per-shell magic number (calc(100vh - 90px)) that assumed a
+   fixed-height nav: below 720px the sidebar becomes a top bar whose six links wrap onto a second
+   row, so the page ran taller than the screen — and since Leaflet's touch-action: none means the
+   map swallows every gesture, the only surface left to scroll that overflow back was the top bar
+   itself. 100dvh (with a 100vh fallback) also keeps iOS's collapsing browser chrome from pushing
+   the bottom of the map out of view. Applies to both map pages via <body class="page-map">. */
+body.page-map .rep-shell,
+body.page-map .manager-shell {
+  align-items: stretch;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+body.page-map .rep-main,
+body.page-map .manager-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+body.page-map main.map-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .leaflet-popup-content-wrapper {
@@ -2102,7 +2145,15 @@ main.map-page {
   position: fixed;
   right: 16px;
   bottom: max(16px, calc(env(safe-area-inset-bottom) + 16px));
-  z-index: 1000;
+  /* Must stay below .modal-backdrop's z-index (60): neither main.map-page nor .rep-main creates a
+     stacking context, so this button's old z-index: 1000 floated it on top of every modal. No
+     modal control actually lands under it at the sizes checked (the cards are centred and their
+     buttons clear the bottom-right corner), so this wasn't stealing taps — but a floating action
+     button painting over an open modal is wrong on its face, and any taller card or shorter
+     viewport would put Save under it, firing locateMe()'s setView(..., 15) instead of saving.
+     Anything above #map-container's own z-index: 1 still clears the whole map, Leaflet's controls
+     included. */
+  z-index: 40;
   width: var(--tap);
   height: var(--tap);
   border-radius: 50%;
@@ -2208,10 +2259,6 @@ main.map-page {
 .manager-main {
   flex: 1;
   min-width: 0;
-}
-
-.manager-main #map-container {
-  height: calc(100vh - 90px);
 }
 
 @media (max-width: 720px) {

@@ -761,6 +761,10 @@ function render() {
 document.addEventListener("DOMContentLoaded", function () {
   render();
 
+  // Leaflet fills this page, so a zoomed-in page viewport has nowhere left to pinch back
+  // out from — see js/map-zoom-guard.js.
+  installPageZoomGuard();
+
   document.getElementById("locate-btn").addEventListener("click", locateMe);
 
   document.getElementById("visit-modal-close").addEventListener("click", closeVisitModal);
