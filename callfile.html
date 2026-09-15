@@ -36,6 +36,7 @@
 
     <div class="search-bar">
       <input type="search" id="callfile-search" placeholder="Search by store name or postcode" />
+      <button type="button" class="btn secondary full date-filter-btn" id="date-filter-btn">Visits by date</button>
     </div>
 
     <div class="grade-tabs" id="grade-tabs"></div>
@@ -52,6 +53,20 @@
       <div class="modal-actions">
         <button class="btn secondary" id="visit-cancel-btn" type="button">Cancel</button>
         <button class="btn" id="visit-confirm-btn" type="button">Log visit</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop hidden" id="date-filter-modal">
+    <div class="modal-card modal-card-narrow">
+      <button class="modal-close" id="date-filter-modal-close" aria-label="Close">&times;</button>
+      <h2>Visits by date</h2>
+      <p class="field-hint">Pick a past date to see every store you visited that day.</p>
+      <label class="field-label" for="date-filter-input">Date</label>
+      <input type="date" id="date-filter-input" class="date-input" />
+      <div class="modal-actions">
+        <button class="btn secondary" id="date-filter-cancel-btn" type="button">Cancel</button>
+        <button class="btn" id="date-filter-confirm-btn" type="button">Show visits</button>
       </div>
     </div>
   </div>

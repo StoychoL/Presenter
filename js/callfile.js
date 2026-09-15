@@ -15,12 +15,17 @@
 // cbKey/cbCounts back the Cycle Brief modal: cbKey is the store being logged against, cbCounts
 // is the in-progress { direct, influence, pos } edit buffer, reset to zeros every time the modal
 // opens (each save is a fresh dated entry, not an edit of a running total — see Storage.logCycleBrief).
+// dateModalOpen/filterDate back the "Visits by date" filter: dateModalOpen is the date-picker
+// modal, filterDate is the ISO date currently being filtered on (null = off, the normal
+// red/amber/green grouping). Session-only in-memory UI state like everything else here — the
+// filter is derived at render time from each store's visits array, nothing new is persisted.
 const callfileUi = {
   logKey: null, rangeKey: null, rangeIndex: 0, editKey: null,
   rangeEditing: false, rangeEditChecked: null, rangeNewTier: null,
   cbKey: null, cbCounts: null,
   ccModalOpen: false,
-  territoryModalOpen: false
+  territoryModalOpen: false,
+  dateModalOpen: false, filterDate: null
 };
 
 function escAttr(str) {
@@ -80,7 +85,10 @@ function cbSummaryText(entry) {
     " · Influence " + entry.influence + " · Future Influence " + entry.pos;
 }
 
-function storeRowHtml(key, store) {
+// visitCount is optional and only passed by the "Visits by date" view — a store visited more than
+// once on the filtered date gets a ×N badge (Storage.logVisit deliberately never dedupes by date,
+// so a Platinum store really can have two visits on one day). Every other caller omits it.
+function storeRowHtml(key, store, visitCount) {
   const status = storeStatus(store);
   const meta = (store.postcode ? escAttr(store.postcode) + " &middot; " : "") +
     "Last " + formatDateShort(store.lastVisitDate) + " &middot; Next " + formatDateShort(store.nextVisitDate);
@@ -93,6 +101,7 @@ function storeRowHtml(key, store) {
       '<div class="store-row-top">' +
         '<span class="store-name">' + escAttr(store.name) + "</span>" +
         (store.secondary ? '<span class="secondary-badge">Secondary</span>' : "") +
+        (visitCount > 1 ? '<span class="visit-count-badge">&times;' + visitCount + "</span>" : "") +
         '<span class="status-pill">' + statusLabel(status) + "</span>" +
       "</div>" +
       '<div class="store-row-bottom">' +
@@ -328,6 +337,57 @@ function gradePanelHtml(grade, entries) {
   );
 }
 
+// The "Visits by date" alternative to gradePanelHtml(): instead of grouping the active tab's
+// stores by this month's red/amber/green status, show only the ones with a visit logged on
+// dateStr. Entries are already grade-filtered and search-filtered by render(), so switching tabs
+// or typing in the search box keeps narrowing within the chosen date for free.
+function dateFilterPanelHtml(entries, dateStr) {
+  const matches = [];
+  let totalVisits = 0;
+  entries.forEach(function (e) {
+    const count = e.store.visits.filter(function (d) { return d === dateStr; }).length;
+    if (!count) return;
+    totalVisits += count;
+    matches.push({ key: e.key, store: e.store, count: count });
+  });
+  matches.sort(function (a, b) { return a.store.name.localeCompare(b.store.name); });
+
+  const heading =
+    '<div class="date-filter-heading">' +
+      "<span>Visits on " + formatDate(dateStr) + "</span>" +
+      '<button type="button" class="btn small secondary" data-action="clear-date-filter">Clear</button>' +
+    "</div>";
+
+  if (!matches.length) {
+    return heading + '<p class="empty-note">No visits logged on ' + formatDate(dateStr) + ".</p>";
+  }
+
+  const summary =
+    '<div class="grade-summary">' + totalVisits + " visit" + (totalVisits === 1 ? "" : "s") +
+      " across " + matches.length + " store" + (matches.length === 1 ? "" : "s") + "</div>";
+  const rows = matches.map(function (m) { return storeRowHtml(m.key, m.store, m.count); }).join("");
+  return heading + summary + '<div class="status-group"><div class="store-list date-filter-list">' + rows + "</div></div>";
+}
+
+function openDateFilterModal() {
+  callfileUi.dateModalOpen = true;
+  render();
+  // Set after render(), like openVisitModal — renderDateFilterModal() never touches the value, so
+  // an in-progress date pick survives the re-renders cloud-sync can trigger underneath it.
+  const dateInput = document.getElementById("date-filter-input");
+  dateInput.max = todayISO();
+  dateInput.value = callfileUi.filterDate || todayISO();
+}
+
+function closeDateFilterModal() {
+  callfileUi.dateModalOpen = false;
+  render();
+}
+
+function renderDateFilterModal() {
+  document.getElementById("date-filter-modal").classList.toggle("hidden", !callfileUi.dateModalOpen);
+}
+
 function openVisitModal(key) {
   callfileUi.logKey = key;
   render();
@@ -543,12 +603,19 @@ function render() {
 
   const activeGrade = state.callfileSession.activeGrade;
   const noMatchLabel = activeGrade === "All" ? "No stores" : "No " + activeGrade + " stores";
-  document.getElementById("callfile-sections").innerHTML = gradePanelHtml(activeGrade, byGrade[activeGrade]) ||
-    '<p class="empty-note">' + (storeCount ? noMatchLabel + " match your search." : "Upload a call file (.xls) to get started.") + "</p>";
+  document.getElementById("callfile-sections").innerHTML = callfileUi.filterDate
+    ? dateFilterPanelHtml(byGrade[activeGrade], callfileUi.filterDate)
+    : (gradePanelHtml(activeGrade, byGrade[activeGrade]) ||
+        '<p class="empty-note">' + (storeCount ? noMatchLabel + " match your search." : "Upload a call file (.xls) to get started.") + "</p>");
+
+  const dateBtn = document.getElementById("date-filter-btn");
+  dateBtn.textContent = callfileUi.filterDate ? "Visits on " + formatDateShort(callfileUi.filterDate) : "Visits by date";
+  dateBtn.classList.toggle("active", !!callfileUi.filterDate);
 
   document.getElementById("cc-list").innerHTML = ccListHtml(state.ccLocations || []);
 
   renderVisitModal(state);
+  renderDateFilterModal();
   renderRangeModal(state);
   renderStoreModal(state);
   renderCbModal(state);
@@ -678,6 +745,8 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   document.getElementById("callfile-sections").addEventListener("click", function (e) {
+    const clearDateBtn = e.target.closest('button[data-action="clear-date-filter"]');
+    if (clearDateBtn) { callfileUi.filterDate = null; render(); return; }
     const logBtn = e.target.closest('button[data-action="log"]');
     if (logBtn) { openVisitModal(logBtn.dataset.key); return; }
     const rangeBtn = e.target.closest('button[data-action="range"]');
@@ -750,6 +819,22 @@ document.addEventListener("DOMContentLoaded", function () {
     const cfg = window.CALLFILE_GRADE_CONFIG[store.grade] || { cadenceWeeks: 4 };
     Storage.logVisit(key, dateVal, cfg.cadenceWeeks);
     callfileUi.logKey = null;
+    render();
+  });
+
+  document.getElementById("date-filter-btn").addEventListener("click", openDateFilterModal);
+  document.getElementById("date-filter-modal-close").addEventListener("click", closeDateFilterModal);
+  document.getElementById("date-filter-cancel-btn").addEventListener("click", closeDateFilterModal);
+
+  document.getElementById("date-filter-modal").addEventListener("click", function (e) {
+    if (e.target.id === "date-filter-modal") closeDateFilterModal();
+  });
+
+  document.getElementById("date-filter-confirm-btn").addEventListener("click", function () {
+    const dateVal = document.getElementById("date-filter-input").value;
+    if (!dateVal) { alert("Pick a date first."); return; }
+    callfileUi.filterDate = dateVal;
+    callfileUi.dateModalOpen = false;
     render();
   });
 
@@ -872,5 +957,6 @@ document.addEventListener("DOMContentLoaded", function () {
     if (e.key === "Escape" && callfileUi.cbKey) closeCbModal();
     if (e.key === "Escape" && callfileUi.ccModalOpen) closeCcModal();
     if (e.key === "Escape" && callfileUi.territoryModalOpen) closeTerritoryModal();
+    if (e.key === "Escape" && callfileUi.dateModalOpen) closeDateFilterModal();
   });
 });

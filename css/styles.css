@@ -1079,6 +1079,46 @@ main {
   padding: 0 14px;
 }
 
+.date-filter-btn {
+  margin-top: 8px;
+}
+
+/* A live date filter is a mode the whole list is in, so the button that set it stays visibly
+   "on" — otherwise a rep can mistake the filtered list for their full call file. */
+.date-filter-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.date-filter-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 14px 16px 6px;
+}
+
+.visit-count-badge {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+/* The date view shows one list rather than up to three stacked status groups, so it can afford
+   more height than .store-list's default 32vh. */
+.date-filter-list {
+  max-height: 52vh;
+}
+
 .grade-tabs {
   display: flex;
   gap: 8px;
