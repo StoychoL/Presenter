@@ -1,10 +1,11 @@
 // Hybrid service worker: network-first (with a short timeout fallback) for the app's own
 // HTML/CSS/JS, so a normal reload always picks up the latest push instead of needing a manual
 // cache clear; cache-first for images/vendored libraries/manifest/icons, which is what keeps the
-// presenter usable on patchy in-store wifi.
+// presenter usable on patchy in-store wifi. Cross-origin traffic is only ever cached for the
+// explicit allowlist in RUNTIME_CACHE_ORIGINS below — Firebase/Google API calls are never touched.
 // Bump CACHE_NAME whenever app files change to force clients to pick up the new version.
 
-const CACHE_NAME = "diageo-presenter-v71";
+const CACHE_NAME = "diageo-presenter-v72";
 
 const PRECACHE_URLS = [
   "./",
@@ -21,7 +22,9 @@ const PRECACHE_URLS = [
   "./manager-dashboard.html",
   "./manager-map.html",
   "./css/styles.css",
+  "./js/state-shape.js",
   "./js/storage.js",
+  "./js/auth-guard.js",
   "./js/home.js",
   "./js/home-stats.js",
   "./js/nav.js",
@@ -129,10 +132,39 @@ self.addEventListener("activate", function (event) {
   );
 });
 
+// Which cross-origin GETs may be stored in this cache at all. Everything else — Firestore /
+// Identity Toolkit / Secure Token API calls (which carry auth state and change per request),
+// postcodes.io lookups (POST anyway), and anything unexpected — is passed straight through to
+// the network with no respondWith() at all, so the browser handles it exactly as if no service
+// worker existed. Caching API responses used to happen by accident here: the cache-first
+// fallback stored every non-app-shell GET it saw, including Firestore channel responses and any
+// 404 image, forever.
+const RUNTIME_CACHE_ORIGINS = [
+  /^https:\/\/www\.gstatic\.com\/firebasejs\//,        // versioned, immutable SDK bundles
+  /^https:\/\/[a-c]\.tile\.openstreetmap\.org\//        // map tiles (opaque responses)
+];
+
+function isRuntimeCacheable(request, url) {
+  if (request.method !== "GET") return false;
+  if (url.origin === self.location.origin) return true;
+  return RUNTIME_CACHE_ORIGINS.some(function (re) { return re.test(url.href); });
+}
+
+// Only a successful response is worth keeping — a 404/500 must never replace a good cached copy
+// (network-first) or get pinned as "the" copy (cache-first). Tiles come back opaque (status 0)
+// because Leaflet loads them via <img> without CORS; those are accepted as-is.
+function isStorable(response, url) {
+  if (response.ok) return true;
+  return response.type === "opaque" && url.hostname.endsWith(".tile.openstreetmap.org");
+}
+
 self.addEventListener("fetch", function (event) {
   const url = new URL(event.request.url);
+  if (!isRuntimeCacheable(event.request, url)) return;
+
+  const isSameOrigin = url.origin === self.location.origin;
   const isVendorAsset = url.pathname.indexOf("/js/vendor/") !== -1;
-  const isAppShell = !isVendorAsset &&
+  const isAppShell = isSameOrigin && !isVendorAsset &&
     (event.request.mode === "navigate" || /\.(html|css|js)$/.test(url.pathname));
 
   if (isAppShell) {
@@ -146,26 +178,36 @@ self.addEventListener("fetch", function (event) {
         fetch(event.request),
         new Promise(function (_, reject) { setTimeout(function () { reject(new Error("timeout")); }, 2500); })
       ]).then(function (response) {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(function (cache) { cache.put(event.request, clone); });
+        if (isStorable(response, url)) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(function (cache) { cache.put(event.request, clone); });
+        }
         return response;
       }).catch(function () {
-        return caches.match(event.request);
+        return caches.match(event.request).then(function (cached) {
+          if (cached) return cached;
+          // Offline and this exact page isn't cached (e.g. a query-string deep link): fall back
+          // to the app's entry point rather than the browser's offline error page.
+          if (event.request.mode === "navigate") return caches.match("./index.html");
+          return Response.error();
+        });
       })
     );
     return;
   }
 
-  // Cache-first for images/vendored libraries/manifest/icons — large and rarely-changing, and
-  // this is what keeps the app usable on patchy in-store wifi.
+  // Cache-first for images/vendored libraries/manifest/icons/SDK bundles/tiles — large and
+  // rarely-changing, and this is what keeps the app usable on patchy in-store wifi.
   event.respondWith(
     caches.match(event.request).then(function (cached) {
       if (cached) return cached;
       return fetch(event.request).then(function (response) {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(function (cache) { cache.put(event.request, clone); });
+        if (isStorable(response, url)) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(function (cache) { cache.put(event.request, clone); });
+        }
         return response;
-      }).catch(function () { return cached; });
+      });
     })
   );
 });

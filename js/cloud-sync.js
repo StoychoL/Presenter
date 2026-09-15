@@ -8,10 +8,28 @@
 // starts) to signal readiness via the "firebase-ready" event before touching window.FirebaseAuth.
 
 // A safe no-op until Firebase is ready — storage.js may call this before hydration completes.
-window.CloudSync = { pushState: function () {} };
+// `status` is read by js/nav.js's sidebar sync indicator; every change also fires a
+// "cloud-sync-status" event on window so the indicator can update without polling.
+//   state: "idle" (nothing pushed yet this page load) | "saving" | "synced" | "error"
+window.CloudSync = {
+  pushState: function () {},
+  status: { state: "idle", pending: 0, lastError: null, lastSyncedAt: null }
+};
 
+function setSyncStatus(patch) {
+  Object.assign(window.CloudSync.status, patch);
+  window.dispatchEvent(new CustomEvent("cloud-sync-status", { detail: window.CloudSync.status }));
+}
+
+// A bug inside a page's render() must surface as that bug, not as a misleading "Could not load
+// your saved data" from the Firestore promise chain it would otherwise reject.
 function rerenderIfPossible() {
-  if (typeof window.render === "function") window.render();
+  if (typeof window.render !== "function") return;
+  try {
+    window.render();
+  } catch (err) {
+    console.error("render() failed after cloud update:", err);
+  }
 }
 
 function subscribeLive(ref) {
@@ -37,17 +55,21 @@ function handleFirstLogin(ref, uid, email) {
     : Storage.defaultPersistedSlice();
   // Not part of the local persisted-state shape at all (see storage.js) — stamped straight from
   // the auth user's email so a manager account listing every users/{uid} doc has a human-readable
-  // label per rep (see manager-dashboard.html), without needing a way to look up arbitrary other
-  // users' emails via the client SDK (there isn't one).
+  // label per rep (see manager-dashboard.html). firestore.rules requires it to equal the signed-in
+  // account's own email, so it can't be forged.
   slice.repEmail = email;
 
   window.FirebaseDb.setDoc(ref, slice)
     .then(function () {
       Storage.hydrateFromCloud(slice);
       Storage.setOwnerUid(uid);
+      setSyncStatus({ state: "synced", lastError: null, lastSyncedAt: new Date().toISOString() });
       rerenderIfPossible();
     })
-    .catch(function (err) { console.error("Could not initialize your account:", err); });
+    .catch(function (err) {
+      console.error("Could not initialize your account:", err);
+      setSyncStatus({ state: "error", lastError: err });
+    });
 }
 
 function hydrateAndSubscribe(uid, email) {
@@ -63,20 +85,30 @@ function hydrateAndSubscribe(uid, email) {
   window.FirebaseDb.getDoc(ref).then(function (snap) {
     if (snap.exists()) {
       const data = snap.data();
+      // Did this device make a call-file change that never reached Firestore (offline, then the
+      // app was closed before the queued write went out)? hydrateFromCloud keeps the newer local
+      // copy in that case, but nothing would ever push it up until the next unrelated mutation —
+      // so push it now. Firestore's persistent cache (js/firebase-config.js) normally replays such
+      // writes itself; this covers the cases it can't (IndexedDB unavailable, cache evicted).
+      const localBefore = Storage.loadState();
+      const localAt = localBefore.callfile && localBefore.callfile.updatedAt;
+      const cloudAt = data.callfile && data.callfile.updatedAt;
+      const localCallfileNewer = !!localAt && (!cloudAt || localAt > cloudAt);
+
       Storage.hydrateFromCloud(data);
       Storage.setOwnerUid(uid);
       rerenderIfPossible();
-      // Backfills repEmail on doc that predate that field (or whose stored email is stale) —
+      // Backfills repEmail on a doc that predates that field (or whose stored email is stale) —
       // pushState() already unconditionally sets repEmail: user.email on every push, so this
-      // reuses that existing pipeline rather than writing directly. Self-heals on next sign-in
-      // rather than retroactively, since there's no way to reach a rep's doc before they do.
-      if (data.repEmail !== email) window.CloudSync.pushState(Storage.loadState());
+      // reuses that existing pipeline rather than writing directly.
+      if (localCallfileNewer || data.repEmail !== email) window.CloudSync.pushState(Storage.loadState(), localCallfileNewer);
     } else {
       handleFirstLogin(ref, uid, email);
     }
     subscribeLive(ref);
   }).catch(function (err) {
     console.error("Could not load your saved data:", err);
+    setSyncStatus({ state: "error", lastError: err });
   });
 }
 
@@ -104,6 +136,8 @@ function initCloudSync() {
   // *after* the 2nd (newer, 2-visit) one, silently overwriting it — even though both are correctly
   // timestamped, since the server just applies whichever write it receives last. Chaining ensures
   // the 2nd write's network request isn't even sent until the 1st has finished.
+  //
+  // The payload's key set must stay within firestore.rules' hasOnly() list for users/{uid}.
   window.CloudSync.pushState = function (state, callfileChanged) {
     const user = auth.currentUser;
     if (!user) return;
@@ -116,9 +150,16 @@ function initCloudSync() {
       payload.callfile = state.callfile;
       fields.push("callfile");
     }
+    setSyncStatus({ state: "saving", pending: window.CloudSync.status.pending + 1 });
     pushChain = pushChain.catch(function () {}).then(function () {
       return window.FirebaseDb.setDoc(window.FirebaseDb.doc(window.FirebaseDb.db, "users", user.uid), payload, { mergeFields: fields });
-    }).catch(function (err) { console.error("Cloud save failed:", err); });
+    }).then(function () {
+      const pending = window.CloudSync.status.pending - 1;
+      setSyncStatus({ state: pending > 0 ? "saving" : "synced", pending: pending, lastError: null, lastSyncedAt: new Date().toISOString() });
+    }).catch(function (err) {
+      console.error("Cloud save failed:", err);
+      setSyncStatus({ state: "error", pending: window.CloudSync.status.pending - 1, lastError: err });
+    });
   };
 
   window.FirebaseAuth.onAuthStateChanged(auth, function (user) {

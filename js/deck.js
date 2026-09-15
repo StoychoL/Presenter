@@ -66,7 +66,7 @@ function buildSlots(numPages) {
 
 document.addEventListener("DOMContentLoaded", function () {
   const status = document.getElementById("deck-status");
-  pdfjsLib.getDocument(PDF_URL).promise
+  pdfjsLib.getDocument({ url: PDF_URL, isEvalSupported: false }).promise
     .then(function (pdf) {
       pdfDoc = pdf;
       return buildSlots(pdf.numPages);

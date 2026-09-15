@@ -1,4 +1,6 @@
-// Shared localStorage layer for the Diageo Sales Presenter.
+// Shared localStorage layer for the Diageo Sales Presenter. Requires js/state-shape.js to be
+// loaded first — every blob read here (localStorage or a Firestore snapshot) is shape-checked
+// through window.StateShape before any page's render() sees it.
 // Product identity/case-size comes from window.CATALOG; grouping from window.PRODUCTS_LAYOUT /
 // window.PP_LAYOUT. Only prices (Products), target counts (PP), and the call file (stores +
 // visit history) are user-edited and persisted; quantities/units/wholesaler/checked-state are
@@ -76,8 +78,12 @@ function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     const base = defaultState();
     if (!raw) return base;
-    const parsed = JSON.parse(raw);
-    if (!parsed || parsed.version !== SCHEMA_VERSION) return base;
+    const raw_parsed = JSON.parse(raw);
+    if (!raw_parsed || raw_parsed.version !== SCHEMA_VERSION) return base;
+    // Shape-check everything before any page's render() dereferences it — see js/state-shape.js.
+    // A store missing its visits array (interrupted write, console edit, older shape) would
+    // otherwise throw on every page load with no way for the rep to recover.
+    const parsed = window.StateShape.sanitizePersistedSlice(raw_parsed);
 
     if (parsed.prices) {
       Object.keys(base.prices).forEach(function (id) {
@@ -108,13 +114,13 @@ function loadState() {
         if (typeof parsed.targetCounts[tierKey] === "number") base.targetCounts[tierKey] = parsed.targetCounts[tierKey];
       });
     }
-    base.productsSession = parsed.productsSession || base.productsSession;
-    base.ppSession = parsed.ppSession || base.ppSession;
-    base.callfile = parsed.callfile || base.callfile;
-    base.callfileSession = parsed.callfileSession || base.callfileSession;
-    base.cashCarry = parsed.cashCarry || base.cashCarry;
-    base.ccLocations = parsed.ccLocations || base.ccLocations;
-    base.repTerritory = parsed.repTerritory || base.repTerritory;
+    base.productsSession = window.StateShape.sanitizeProductsSession(raw_parsed.productsSession);
+    base.ppSession = window.StateShape.sanitizePpSession(raw_parsed.ppSession, Object.keys(window.PP_LAYOUT || {}), base.ppSession.activeTier);
+    base.callfileSession = window.StateShape.sanitizeCallfileSession(raw_parsed.callfileSession, base.callfileSession.activeGrade);
+    if (parsed.callfile) base.callfile = parsed.callfile;
+    if (parsed.cashCarry) base.cashCarry = parsed.cashCarry;
+    if (parsed.ccLocations) base.ccLocations = parsed.ccLocations;
+    if ("repTerritory" in parsed) base.repTerritory = parsed.repTerritory;
     return base;
   } catch (e) {
     return defaultState();
@@ -127,8 +133,21 @@ function loadState() {
 // for an unrelated reason (e.g. a price edit) would blindly overwrite the cloud's newer call file
 // with whatever it has cached. Mutators that don't touch callfile.stores (setPrice, toggleChecked,
 // etc.) simply omit this argument.
+// localStorage can refuse a write (quota exceeded, Safari private mode, storage disabled). That
+// must never abort the mutation the rep just made: log it, and let the cloud push below still go
+// out so at least Firestore has the change.
+function writeLocal(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (e) {
+    console.warn("localStorage write failed for " + key + ":", e);
+    return false;
+  }
+}
+
 function saveState(state, callfileChanged) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  writeLocal(STORAGE_KEY, JSON.stringify(state));
   // Mirrors the persisted slice up to the signed-in rep's Firestore doc in the background — see
   // js/cloud-sync.js. Every mutation already funnels through this one function, so this is the
   // only place cloud sync needs to hook in; localStorage stays the synchronous source of truth
@@ -150,7 +169,7 @@ function getOwnerUid() {
 }
 
 function setOwnerUid(uid) {
-  localStorage.setItem(OWNER_KEY, uid);
+  writeLocal(OWNER_KEY, uid);
 }
 
 // Wipes the device-level cache entirely — both the persisted slice and session state, unlike the
@@ -208,8 +227,11 @@ function getLiveStore(stores, key) {
 // live update from another device. callfile is replaced wholesale only when the incoming copy is
 // at least as new as what's already local (see callfile.updatedAt note above) — otherwise this
 // hydration is racing a not-yet-committed local write, so local is kept as-is.
-function hydrateFromCloud(slice) {
+function hydrateFromCloud(rawSlice) {
   const state = loadState();
+  // Same shape-check as loadState — a Firestore doc is just as capable of holding a malformed
+  // store (a partial write from an older client, say) as localStorage is.
+  const slice = window.StateShape.sanitizePersistedSlice(rawSlice);
   if (slice.prices) state.prices = slice.prices;
   if (slice.targetCounts) state.targetCounts = slice.targetCounts;
   if (slice.callfile) {
@@ -233,8 +255,10 @@ function hydrateFromCloud(slice) {
   // wholesale by every save), so plain last-write-wins is correct and simplest.
   if (slice.cashCarry) state.cashCarry = slice.cashCarry;
   if (slice.ccLocations) state.ccLocations = slice.ccLocations;
-  if (slice.repTerritory) state.repTerritory = slice.repTerritory;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  // Presence check, not truthiness: a territory cleared back to null on another device must
+  // propagate here too, not be ignored because null is falsy.
+  if ("repTerritory" in slice) state.repTerritory = slice.repTerritory;
+  writeLocal(STORAGE_KEY, JSON.stringify(state));
   return state;
 }
 
@@ -513,7 +537,7 @@ const CC_VISIT_CADENCE_WEEKS = 2;
 function logCcVisit(id, dateStr) {
   const state = loadState();
   const loc = state.ccLocations.find(function (l) { return l.id === id; });
-  if (!loc) return state;
+  if (!loc || !window.StateShape.isDate(dateStr)) return state;
   loc.lastVisitDate = dateStr;
   const next = new Date(dateStr);
   next.setDate(next.getDate() + CC_VISIT_CADENCE_WEEKS * 7);
@@ -560,7 +584,9 @@ function setCallfileGrade(grade) {
 function logVisit(key, dateStr, cadenceWeeks) {
   const state = loadState();
   const store = getLiveStore(state.callfile.stores, key);
-  if (!store) return state;
+  // A non-ISO date would make the nextVisitDate math below throw (Invalid Date -> toISOString
+  // RangeError) — refuse it outright rather than half-applying the visit.
+  if (!store || !window.StateShape.isDate(dateStr)) return state;
   // Each tap is a distinct visit event — a Platinum store visited twice in one day must still
   // count as 2 toward its monthly requirement, so visits are never deduped by date.
   store.visits.push(dateStr);
@@ -581,7 +607,7 @@ function logVisit(key, dateStr, cadenceWeeks) {
 function logCycleBrief(key, dateStr, counts) {
   const state = loadState();
   const store = getLiveStore(state.callfile.stores, key);
-  if (!store) return state;
+  if (!store || !window.StateShape.isDate(dateStr)) return state;
   if (!store.cbEvents) store.cbEvents = [];
   store.cbEvents.push({
     date: dateStr,

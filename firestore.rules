@@ -1,25 +1,56 @@
 rules_version = '2';
 
-// Each rep's data lives at /users/{uid} and is only readable/writable by that
-// signed-in rep — see CLAUDE.md's "Cloud sync (Firebase)" section for the shape
-// stored there and why session-only state never reaches Firestore at all.
+// Each rep's data lives at /users/{uid} and is only writable by that signed-in rep — see
+// CLAUDE.md's "Cloud sync (Firebase)" section for the shape stored there and why session-only
+// state never reaches Firestore at all. Writes are shape-checked: only the known top-level
+// fields are allowed, and repEmail must match the signed-in account's own email (the manager
+// dashboard displays it, so a rep must not be able to write an arbitrary string there).
 //
 // /managers/{uid} is a marker doc a manager account creates for itself at signup
-// (js/manager-auth.js) — its only purpose is letting rules below distinguish a
-// manager uid via exists(), so a manager account can read (never write) every
-// rep's /users/{uid} doc, for the read-only cross-rep dashboard/map in
-// manager-dashboard.html / manager-map.html. This is a soft, rules-level gate to
-// self-registered manager accounts (see js/manager-auth.js's access-code check) —
-// not a stronger admin-approval flow.
+// (js/manager-auth.js) — its only purpose is letting rules below distinguish a manager uid via
+// exists(), so a manager account can read (never write) every rep's /users/{uid} doc, for the
+// read-only cross-rep dashboard/map in manager-dashboard.html / manager-map.html.
+//
+// Creating that marker requires the shared manager access code, checked HERE rather than in
+// browser JS: the code lives in /config/managerAccess (field `code`), which no client can read or
+// write — rules' get() bypasses client read permissions, so this is a server-enforced gate even
+// though the app has no backend of its own. If /config/managerAccess doesn't exist, get() yields
+// null and the comparison errors, which Firestore treats as a denial — fails closed. Change the
+// code by editing that one doc in the Firebase console; no redeploy needed.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /managers/{uid} {
-      allow read, create: if request.auth != null && request.auth.uid == uid;
+    // Deliberately no allow rules at all — readable only by the rules engine via get().
+    match /config/{doc} {
+      allow read, write: if false;
     }
+
+    match /managers/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(["email", "createdAt", "code"])
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.code is string
+        && request.resource.data.code == get(/databases/$(database)/documents/config/managerAccess).data.code;
+    }
+
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
-      allow read: if request.auth != null
-        && exists(/databases/$(database)/documents/managers/$(request.auth.uid));
+      allow read: if request.auth != null && (
+        request.auth.uid == uid
+        || exists(/databases/$(database)/documents/managers/$(request.auth.uid))
+      );
+      // Writes are validated on the keys they CHANGE (affectedKeys), not the whole doc, so a doc
+      // that still carries some legacy top-level field from an older client version can't be
+      // locked out of every future save. js/cloud-sync.js's mergeFields pushes only ever touch
+      // these fields; repEmail, whenever it's written, must be the account's own email.
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(["prices", "targetCounts", "callfile", "cashCarry", "ccLocations", "repTerritory", "repEmail"])
+        && request.resource.data.repEmail == request.auth.token.email;
+      allow update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(["prices", "targetCounts", "callfile", "cashCarry", "ccLocations", "repTerritory", "repEmail"])
+        && (!("repEmail" in request.resource.data) || request.resource.data.repEmail == request.auth.token.email);
+      // A rep may delete their own doc (account clean-up); nothing in the app does this today.
+      allow delete: if request.auth != null && request.auth.uid == uid;
     }
   }
 }

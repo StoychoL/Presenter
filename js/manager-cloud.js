@@ -34,6 +34,7 @@ function rerenderIfPossible() {
   if (typeof window.render === "function") window.render();
 }
 
+// Requires js/state-shape.js to be loaded first.
 // Each users/{uid} doc holds a rep's full persisted slice (prices/targetCounts/cashCarry/
 // ccLocations/repTerritory/repEmail/callfile) — the manager dashboard/map only need callfile,
 // repTerritory, and repEmail, but the client SDK has no field-projection option, so the rest just
@@ -44,17 +45,21 @@ function loadAllReps() {
     const reps = [];
     snap.forEach(function (doc) {
       const data = doc.data();
+      // Shape-checked through js/state-shape.js: one malformed store in any single rep's doc
+      // would otherwise throw inside storeStatus()/weekStats() and take down the whole
+      // cross-rep dashboard/map for every manager.
       reps.push({
         uid: doc.id,
-        repEmail: data.repEmail || null,
-        repTerritory: data.repTerritory || null,
-        callfile: data.callfile || { stores: {} }
+        repEmail: typeof data.repEmail === "string" ? data.repEmail : null,
+        repTerritory: typeof data.repTerritory === "string" && data.repTerritory ? data.repTerritory : null,
+        callfile: window.StateShape.sanitizeCallfile(data.callfile)
       });
     });
     window.ManagerData.reps = reps;
     rerenderIfPossible();
   }).catch(function (err) {
     console.error("Could not load rep data:", err);
+    showManagerError("Couldn't load rep data — check your connection and reload.");
   });
 }
 
@@ -65,7 +70,9 @@ function initManagerCloud() {
     if (!user) { window.location.replace("manager-login.html"); return; }
 
     const managerRef = window.FirebaseDb.doc(window.FirebaseDb.db, "managers", user.uid);
-    window.FirebaseDb.getDoc(managerRef).then(function (snap) {
+    // Server-only read — see js/manager-auth.js's isManager() for why a cached/pending-write
+    // view of this doc must never be trusted for the manager gate.
+    window.FirebaseDb.getDocFromServer(managerRef).then(function (snap) {
       if (!snap.exists()) {
         // Signed in, but not a registered manager (e.g. a rep account) — this page has nothing
         // for them; sign out rather than leaving a half-authenticated session sitting on it.
@@ -77,8 +84,19 @@ function initManagerCloud() {
       loadAllReps();
     }).catch(function (err) {
       console.error("Could not verify manager account:", err);
+      showManagerError("Couldn't verify your manager account — check your connection and reload.");
     });
   });
+}
+
+// Both manager pages have a single empty-state element (#manager-empty on the dashboard,
+// #map-empty on the map) that otherwise sits on "Loading…" forever if the manager check or the
+// rep fetch fails — surface the failure there instead of only in the console.
+function showManagerError(msg) {
+  const el = document.getElementById("manager-empty") || document.getElementById("map-empty");
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.remove("hidden");
 }
 
 if (window.FirebaseAuth) {

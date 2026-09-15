@@ -1,0 +1,14 @@
+# Internal docs / tooling — never meant to be served to app users.
+CLAUDE.md
+DESIGN.md
+PRODUCT.md
+.firebaserc
+firebase.json
+firestore.rules
+firestore.indexes.json
+.gitignore
+.git
+.claude
+*.xls
+*.xlsx
+.DS_Store

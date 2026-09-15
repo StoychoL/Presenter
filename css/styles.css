@@ -139,6 +139,21 @@ input:focus-visible {
 
 .rep-account .rep-email:empty { display: none; }
 
+/* Sync indicator under the email (js/nav.js renderSyncStatus) — muted by default, amber when the
+   rep's changes haven't reached Firestore (offline / failed push). */
+.rep-account .rep-sync {
+  color: var(--ink-soft);
+  font-size: 12px;
+  padding-bottom: 8px;
+}
+
+.rep-account .rep-sync.warn {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.rep-account .rep-sync:empty { display: none; }
+
 .rep-account .rep-logout {
   width: 100%;
   min-height: var(--tap);
@@ -196,6 +211,7 @@ input:focus-visible {
   }
 
   .rep-account .rep-email { padding-bottom: 0; }
+  .rep-account .rep-sync { padding-bottom: 0; }
   .rep-account .rep-logout { width: auto; padding: 0 14px; }
 
   .summary-bar,

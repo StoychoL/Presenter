@@ -2,6 +2,10 @@
 // manager-dashboard.html/manager-map.html. Kept fully separate from js/nav.js, which CLAUDE.md
 // notes is "the only place that knows the [rep] page list" — the manager area is a parallel,
 // unrelated account type with its own two-page nav, not an extension of the rep shell.
+//
+// Loaded last on each manager page as <script src="js/manager-nav.js" data-page="map"> — the
+// page key comes from document.currentScript's data attribute, not an inline script, because the
+// page CSP forbids inline scripts (see js/nav.js for the same note).
 
 function renderManagerNav(activePage) {
   const links = [
@@ -55,4 +59,8 @@ if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () {
     navigator.serviceWorker.register("service-worker.js").catch(function () {});
   });
+}
+
+if (document.currentScript && document.currentScript.dataset.page) {
+  renderManagerNav(document.currentScript.dataset.page);
 }
