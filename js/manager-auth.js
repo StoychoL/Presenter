@@ -21,7 +21,7 @@ function friendlyError(err) {
   const code = err && err.code;
   if (code === "auth/email-already-in-use") return "That email already has an account — try signing in instead.";
   if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") return "Email or password is incorrect.";
-  if (code === "auth/weak-password") return "Password must be at least 6 characters.";
+  if (code === "auth/weak-password" || code === "auth/password-does-not-meet-requirements") return "Password must be at least 8 characters.";
   if (code === "auth/invalid-email") return "That doesn't look like a valid email address.";
   return (err && err.message) || "Something went wrong — try again.";
 }
