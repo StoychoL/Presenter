@@ -5,7 +5,7 @@
 // explicit allowlist in RUNTIME_CACHE_ORIGINS below — Firebase/Google API calls are never touched.
 // Bump CACHE_NAME whenever app files change to force clients to pick up the new version.
 
-const CACHE_NAME = "diageo-presenter-v72";
+const CACHE_NAME = "diageo-presenter-v73";
 
 const PRECACHE_URLS = [
   "./",
@@ -132,6 +132,13 @@ self.addEventListener("activate", function (event) {
   );
 });
 
+// NOTE: this worker script is served with the same Content-Security-Policy header as every page
+// (vercel.json), and a worker's own fetch() calls are governed by that policy's connect-src. So
+// any cross-origin host this worker fetches on the page's behalf (the entries below) MUST also be
+// listed in connect-src, or the fetch dies with net::ERR_FAILED even though the page's img-src
+// allows it — that was the "grey map, no tiles" bug. A byte change here (e.g. the CACHE_NAME
+// bump) is what makes already-installed workers re-fetch the script and pick up a new header.
+//
 // Which cross-origin GETs may be stored in this cache at all. Everything else — Firestore /
 // Identity Toolkit / Secure Token API calls (which carry auth state and change per request),
 // postcodes.io lookups (POST anyway), and anything unexpected — is passed straight through to
