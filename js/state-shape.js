@@ -164,6 +164,9 @@ window.StateShape = (function () {
     const out = {};
     if (!isObj(slice)) return out;
     if ("prices" in slice) out.prices = sanitizePrices(slice.prices);
+    // ISO timestamp of the last price edit — hydrateFromCloud compares it so a stale cloud copy
+    // can't overwrite newer local prices. Anything that isn't a string comes back as null.
+    if ("pricesUpdatedAt" in slice) out.pricesUpdatedAt = typeof slice.pricesUpdatedAt === "string" ? strOrNull(slice.pricesUpdatedAt) : null;
     if ("targetCounts" in slice) out.targetCounts = sanitizeTargetCounts(slice.targetCounts);
     if ("callfile" in slice) out.callfile = sanitizeCallfile(slice.callfile);
     if ("cashCarry" in slice) out.cashCarry = sanitizeCashCarry(slice.cashCarry);

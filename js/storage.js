@@ -24,6 +24,11 @@ function defaultState() {
   return {
     version: SCHEMA_VERSION,
     prices: prices,
+    // Bumped by setPrice. Lets hydrateFromCloud keep newer local prices instead of letting a
+    // stale cloud copy (a write that never reached Firestore) wipe them on the next page load.
+    // Optional: a blob without it loads fine, so adding it needed no SCHEMA_VERSION bump (a bump
+    // would have wiped the very local prices this protects).
+    pricesUpdatedAt: null,
     targetCounts: targetCounts,
     productsSession: {
       quantities: {},
@@ -90,6 +95,7 @@ function loadState() {
         if (parsed.prices[id]) base.prices[id] = parsed.prices[id];
       });
     }
+    if ("pricesUpdatedAt" in parsed) base.pricesUpdatedAt = parsed.pricesUpdatedAt;
     if (parsed.targetCounts) {
       Object.keys(base.targetCounts).forEach(function (tierKey) {
         // One-time migration: Tier 3's default target changed from 20 to 23 (Core Range 17 +
@@ -187,6 +193,7 @@ function clearLocal() {
 function cloudSlice(state) {
   return {
     prices: state.prices,
+    pricesUpdatedAt: state.pricesUpdatedAt,
     targetCounts: state.targetCounts,
     callfile: state.callfile,
     cashCarry: state.cashCarry,
@@ -227,12 +234,25 @@ function getLiveStore(stores, key) {
 // live update from another device. callfile is replaced wholesale only when the incoming copy is
 // at least as new as what's already local (see callfile.updatedAt note above) — otherwise this
 // hydration is racing a not-yet-committed local write, so local is kept as-is.
+// True when the local timestamp is strictly newer than the cloud's (or the cloud has none).
+function isLocalNewer(localAt, cloudAt) {
+  return !!localAt && (!cloudAt || localAt > cloudAt);
+}
+
 function hydrateFromCloud(rawSlice) {
   const state = loadState();
   // Same shape-check as loadState — a Firestore doc is just as capable of holding a malformed
   // store (a partial write from an older client, say) as localStorage is.
   const slice = window.StateShape.sanitizePersistedSlice(rawSlice);
-  if (slice.prices) state.prices = slice.prices;
+  if (slice.prices && !isLocalNewer(state.pricesUpdatedAt, slice.pricesUpdatedAt)) {
+    // Neither side stamped (every doc before this field existed): cloud wins, as it always did.
+    // Otherwise cloud prices are adopted only when they're at least as new as local ones — a
+    // price set on this device whose write never reached Firestore (patchy signal, then a
+    // refresh) must not be rolled back by the stale cloud copy. hydrateAndSubscribe then pushes
+    // the newer local prices up.
+    state.prices = slice.prices;
+    if (slice.pricesUpdatedAt) state.pricesUpdatedAt = slice.pricesUpdatedAt;
+  }
   if (slice.targetCounts) state.targetCounts = slice.targetCounts;
   if (slice.callfile) {
     const localAt = state.callfile.updatedAt;
@@ -268,6 +288,7 @@ function setPrice(id, wholesaler, price) {
   const state = loadState();
   if (!state.prices[id]) state.prices[id] = { booker: 0, bestway: 0 };
   state.prices[id][wholesaler] = price;
+  state.pricesUpdatedAt = new Date().toISOString();
   saveState(state);
   return state;
 }

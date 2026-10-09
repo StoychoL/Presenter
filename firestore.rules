@@ -43,11 +43,11 @@ service cloud.firestore {
       // locked out of every future save. js/cloud-sync.js's mergeFields pushes only ever touch
       // these fields; repEmail, whenever it's written, must be the account's own email.
       allow create: if request.auth != null && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(["prices", "targetCounts", "callfile", "cashCarry", "ccLocations", "repTerritory", "repEmail"])
+        && request.resource.data.keys().hasOnly(["prices", "pricesUpdatedAt", "targetCounts", "callfile", "cashCarry", "ccLocations", "repTerritory", "repEmail"])
         && request.resource.data.repEmail == request.auth.token.email;
       allow update: if request.auth != null && request.auth.uid == uid
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(["prices", "targetCounts", "callfile", "cashCarry", "ccLocations", "repTerritory", "repEmail"])
+             .hasOnly(["prices", "pricesUpdatedAt", "targetCounts", "callfile", "cashCarry", "ccLocations", "repTerritory", "repEmail"])
         && (!("repEmail" in request.resource.data) || request.resource.data.repEmail == request.auth.token.email);
       // A rep may delete their own doc (account clean-up); nothing in the app does this today.
       allow delete: if request.auth != null && request.auth.uid == uid;

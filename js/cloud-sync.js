@@ -51,7 +51,7 @@ function handleFirstLogin(ref, uid, email) {
   );
   const local = Storage.loadState();
   const slice = importIt
-    ? { prices: local.prices, targetCounts: local.targetCounts, callfile: local.callfile, cashCarry: local.cashCarry, ccLocations: local.ccLocations, repTerritory: local.repTerritory }
+    ? { prices: local.prices, pricesUpdatedAt: local.pricesUpdatedAt, targetCounts: local.targetCounts, callfile: local.callfile, cashCarry: local.cashCarry, ccLocations: local.ccLocations, repTerritory: local.repTerritory }
     : Storage.defaultPersistedSlice();
   // Not part of the local persisted-state shape at all (see storage.js) — stamped straight from
   // the auth user's email so a manager account listing every users/{uid} doc has a human-readable
@@ -94,6 +94,11 @@ function hydrateAndSubscribe(uid, email) {
       const localAt = localBefore.callfile && localBefore.callfile.updatedAt;
       const cloudAt = data.callfile && data.callfile.updatedAt;
       const localCallfileNewer = !!localAt && (!cloudAt || localAt > cloudAt);
+      // Same net for prices: a price set here whose write never reached Firestore is kept locally
+      // by hydrateFromCloud (pricesUpdatedAt is newer) and must be pushed up now, or the cloud
+      // would keep the stale copy until the next price edit.
+      const localPricesAt = localBefore.pricesUpdatedAt;
+      const localPricesNewer = !!localPricesAt && (!data.pricesUpdatedAt || localPricesAt > data.pricesUpdatedAt);
 
       Storage.hydrateFromCloud(data);
       Storage.setOwnerUid(uid);
@@ -101,7 +106,7 @@ function hydrateAndSubscribe(uid, email) {
       // Backfills repEmail on a doc that predates that field (or whose stored email is stale) —
       // pushState() already unconditionally sets repEmail: user.email on every push, so this
       // reuses that existing pipeline rather than writing directly.
-      if (localCallfileNewer || data.repEmail !== email) window.CloudSync.pushState(Storage.loadState(), localCallfileNewer);
+      if (localCallfileNewer || localPricesNewer || data.repEmail !== email) window.CloudSync.pushState(Storage.loadState(), localCallfileNewer);
     } else {
       handleFirstLogin(ref, uid, email);
     }
@@ -111,12 +116,6 @@ function hydrateAndSubscribe(uid, email) {
     setSyncStatus({ state: "error", lastError: err });
   });
 }
-
-// Every push is chained onto this promise instead of being fired independently, so Firestore
-// always receives them in the same order they were locally initiated — see the note in
-// initCloudSync() below for why that matters (two unawaited writes can otherwise arrive at the
-// server out of order over patchy wifi, letting an older write silently clobber a newer one).
-let pushChain = Promise.resolve();
 
 function initCloudSync() {
   const auth = window.FirebaseAuth.auth;
@@ -130,12 +129,13 @@ function initCloudSync() {
   // including dropping any store key no longer present locally — while {merge: true}'s recursive
   // deep-merge on nested maps would leave a locally-deleted store's key alive on the server.
   //
-  // Pushes are chained through pushChain rather than fired independently: a rep logging a
-  // Platinum store's 2nd visit seconds after the 1st fires two unawaited setDoc calls, and without
-  // this, a slow/patchy connection can let the 1st (older, 1-visit) write arrive at Firestore
-  // *after* the 2nd (newer, 2-visit) one, silently overwriting it — even though both are correctly
-  // timestamped, since the server just applies whichever write it receives last. Chaining ensures
-  // the 2nd write's network request isn't even sent until the 1st has finished.
+  // Every setDoc is handed to the Firestore SDK immediately. The SDK keeps one client's writes in
+  // a single ordered queue and sends them to the server in the order they were issued, so a
+  // Platinum store's 2nd visit can never be overtaken by the older 1st-visit write. That queue
+  // lives in IndexedDB (persistentLocalCache), so a write survives a refresh or a closed tab.
+  // These pushes used to be chained in page memory behind each previous write's server ack —
+  // on patchy in-store signal the first write hung, every later one sat in that in-memory chain,
+  // and a refresh discarded them: a rep who set several prices kept only the first one.
   //
   // The payload's key set must stay within firestore.rules' hasOnly() list for users/{uid}.
   window.CloudSync.pushState = function (state, callfileChanged) {
@@ -144,16 +144,14 @@ function initCloudSync() {
     // cashCarry is pushed unconditionally every save, same tier as prices/targetCounts — unlike
     // callfile's callfileChanged gate, a single flat always-fully-overwritten draft has no
     // multi-writer race worth guarding against, so there's no need for a dirty flag.
-    const payload = { prices: state.prices, targetCounts: state.targetCounts, cashCarry: state.cashCarry, ccLocations: state.ccLocations, repTerritory: state.repTerritory, repEmail: user.email };
-    const fields = ["prices", "targetCounts", "cashCarry", "ccLocations", "repTerritory", "repEmail"];
+    const payload = { prices: state.prices, pricesUpdatedAt: state.pricesUpdatedAt, targetCounts: state.targetCounts, cashCarry: state.cashCarry, ccLocations: state.ccLocations, repTerritory: state.repTerritory, repEmail: user.email };
+    const fields = ["prices", "pricesUpdatedAt", "targetCounts", "cashCarry", "ccLocations", "repTerritory", "repEmail"];
     if (callfileChanged) {
       payload.callfile = state.callfile;
       fields.push("callfile");
     }
     setSyncStatus({ state: "saving", pending: window.CloudSync.status.pending + 1 });
-    pushChain = pushChain.catch(function () {}).then(function () {
-      return window.FirebaseDb.setDoc(window.FirebaseDb.doc(window.FirebaseDb.db, "users", user.uid), payload, { mergeFields: fields });
-    }).then(function () {
+    window.FirebaseDb.setDoc(window.FirebaseDb.doc(window.FirebaseDb.db, "users", user.uid), payload, { mergeFields: fields }).then(function () {
       const pending = window.CloudSync.status.pending - 1;
       setSyncStatus({ state: pending > 0 ? "saving" : "synced", pending: pending, lastError: null, lastSyncedAt: new Date().toISOString() });
     }).catch(function (err) {
