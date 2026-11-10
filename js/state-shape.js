@@ -97,6 +97,8 @@ window.StateShape = (function () {
       const p = prices[id];
       if (!isObj(p)) return;
       out[id] = { booker: Math.max(0, num(p.booker, 0)), bestway: Math.max(0, num(p.bestway, 0)) };
+      // Per-product edit time (Storage.setPrice) — what the per-product merge compares.
+      if (typeof p.at === "string" && p.at) out[id].at = p.at;
     });
     return out;
   }

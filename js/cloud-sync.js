@@ -97,8 +97,9 @@ function hydrateAndSubscribe(uid, email) {
       // Same net for prices: a price set here whose write never reached Firestore is kept locally
       // by hydrateFromCloud (pricesUpdatedAt is newer) and must be pushed up now, or the cloud
       // would keep the stale copy until the next price edit.
-      const localPricesAt = localBefore.pricesUpdatedAt;
-      const localPricesNewer = !!localPricesAt && (!data.pricesUpdatedAt || localPricesAt > data.pricesUpdatedAt);
+      // Products whose price on this device is newer than (or a real price where the cloud has 0)
+      // the cloud's — pushed back up product by product so the cloud heals.
+      const pricesToHeal = Storage.mergePrices(localBefore, window.StateShape.sanitizePersistedSlice({ prices: data.prices || {}, pricesUpdatedAt: data.pricesUpdatedAt })).localWins;
 
       Storage.hydrateFromCloud(data);
       Storage.setOwnerUid(uid);
@@ -106,7 +107,7 @@ function hydrateAndSubscribe(uid, email) {
       // Backfills repEmail on a doc that predates that field (or whose stored email is stale) —
       // pushState() already unconditionally sets repEmail: user.email on every push, so this
       // reuses that existing pipeline rather than writing directly.
-      if (localCallfileNewer || localPricesNewer || data.repEmail !== email) window.CloudSync.pushState(Storage.loadState(), localCallfileNewer);
+      if (localCallfileNewer || pricesToHeal.length || data.repEmail !== email) window.CloudSync.pushState(Storage.loadState(), localCallfileNewer, pricesToHeal);
     } else {
       handleFirstLogin(ref, uid, email);
     }
@@ -138,14 +139,30 @@ function initCloudSync() {
   // and a refresh discarded them: a rep who set several prices kept only the first one.
   //
   // The payload's key set must stay within firestore.rules' hasOnly() list for users/{uid}.
-  window.CloudSync.pushState = function (state, callfileChanged) {
+  //
+  // Prices are NEVER pushed as a whole list. Only the products named in priceIds go up, each as
+  // its own field path ("prices.<id>"), so the write touches that one product and nothing else.
+  // Pushing the whole list on every save let any device holding an old list (a phone that was
+  // offline while prices were set on the tablet) wipe every newer price when it next saved
+  // anything at all. Catalog ids are plain identifiers, so they're safe as path segments.
+  window.CloudSync.pushState = function (state, callfileChanged, priceIds) {
     const user = auth.currentUser;
     if (!user) return;
-    // cashCarry is pushed unconditionally every save, same tier as prices/targetCounts — unlike
+    // cashCarry is pushed unconditionally every save, same tier as targetCounts — unlike
     // callfile's callfileChanged gate, a single flat always-fully-overwritten draft has no
     // multi-writer race worth guarding against, so there's no need for a dirty flag.
-    const payload = { prices: state.prices, pricesUpdatedAt: state.pricesUpdatedAt, targetCounts: state.targetCounts, cashCarry: state.cashCarry, ccLocations: state.ccLocations, repTerritory: state.repTerritory, repEmail: user.email };
-    const fields = ["prices", "pricesUpdatedAt", "targetCounts", "cashCarry", "ccLocations", "repTerritory", "repEmail"];
+    const payload = { targetCounts: state.targetCounts, cashCarry: state.cashCarry, ccLocations: state.ccLocations, repTerritory: state.repTerritory, repEmail: user.email };
+    const fields = ["targetCounts", "cashCarry", "ccLocations", "repTerritory", "repEmail"];
+    const ids = (priceIds || []).filter(function (id) { return /^[A-Za-z_][A-Za-z0-9_]*$/.test(id) && state.prices[id]; });
+    if (ids.length) {
+      payload.prices = {};
+      ids.forEach(function (id) {
+        payload.prices[id] = state.prices[id];
+        fields.push("prices." + id);
+      });
+      payload.pricesUpdatedAt = state.pricesUpdatedAt;
+      fields.push("pricesUpdatedAt");
+    }
     if (callfileChanged) {
       payload.callfile = state.callfile;
       fields.push("callfile");

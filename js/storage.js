@@ -157,13 +157,15 @@ function writeLocal(key, value) {
   }
 }
 
-function saveState(state, callfileChanged) {
+// priceIds (optional array): the products whose price this mutation changed. Prices are pushed
+// per product, never as the whole list — see setPrice and CloudSync.pushState.
+function saveState(state, callfileChanged, priceIds) {
   writeLocal(STORAGE_KEY, JSON.stringify(state));
   // Mirrors the persisted slice up to the signed-in rep's Firestore doc in the background — see
   // js/cloud-sync.js. Every mutation already funnels through this one function, so this is the
   // only place cloud sync needs to hook in; localStorage stays the synchronous source of truth
   // every render() reads from, cloud sync is purely a background mirror on top.
-  if (window.CloudSync) window.CloudSync.pushState(state, callfileChanged);
+  if (window.CloudSync) window.CloudSync.pushState(state, callfileChanged, priceIds);
 }
 
 function hasSavedData() {
@@ -240,8 +242,52 @@ function getLiveStore(stores, key) {
 // at least as new as what's already local (see callfile.updatedAt note above) — otherwise this
 // hydration is racing a not-yet-committed local write, so local is kept as-is.
 // True when the local timestamp is strictly newer than the cloud's (or the cloud has none).
-function isLocalNewer(localAt, cloudAt) {
-  return !!localAt && (!cloudAt || localAt > cloudAt);
+// Each price entry carries its own `at` (ISO time of its last edit, set by setPrice). An entry
+// from before that existed has none, so a real (non-zero) one falls back to its side's
+// whole-list pricesUpdatedAt. An unstamped 0 is a product whose price was never set — it has no
+// age at all and must never beat a real price.
+function priceStamp(entry, listStamp) {
+  if (!entry) return "";
+  if (entry.at) return entry.at;
+  if (priceValue(entry) === 0) return "";
+  return listStamp || "";
+}
+
+function priceValue(entry) {
+  return entry ? (entry.booker || 0) + (entry.bestway || 0) : 0;
+}
+
+// Merges a cloud price list into the local one product by product. The newer edit of each
+// product wins; on a tie the cloud wins, except that a real local price beats a cloud 0 (a
+// cleared/never-set cloud entry must not erase a price this device still holds). Returns the
+// merged list plus localWins: products where this device's copy won AND differs from the cloud,
+// which hydrateAndSubscribe pushes back up so the cloud heals.
+//
+// This replaced a whole-list comparison on pricesUpdatedAt. Every save from any page used to
+// push the entire price list, so a second device holding an old list (a phone back online after
+// a visit logged with no signal, say) overwrote every price set elsewhere — and logging out,
+// which wipes the device copy, then made the loss permanent.
+function mergePrices(localState, slice) {
+  const local = localState.prices || {};
+  const cloud = slice.prices || {};
+  const merged = {};
+  const localWins = [];
+  Object.keys(local).concat(Object.keys(cloud)).forEach(function (id) {
+    if (id in merged) return;
+    const l = local[id], c = cloud[id];
+    if (!c) { merged[id] = l; return; }
+    if (!l) { merged[id] = c; return; }
+    const ls = priceStamp(l, localState.pricesUpdatedAt);
+    const cs = priceStamp(c, slice.pricesUpdatedAt);
+    const localBetter = ls > cs || (ls === cs && priceValue(c) === 0 && priceValue(l) > 0);
+    const winner = localBetter ? l : c;
+    const stamp = localBetter ? ls : cs;
+    // Freeze the fallback stamp onto the entry, so a later edit of some *other* product (which
+    // bumps the list stamp) can't make this old price look newer than it is.
+    merged[id] = (!winner.at && stamp) ? Object.assign({}, winner, { at: stamp }) : winner;
+    if (localBetter && (l.booker !== c.booker || l.bestway !== c.bestway)) localWins.push(id);
+  });
+  return { prices: merged, localWins: localWins };
 }
 
 function hydrateFromCloud(rawSlice) {
@@ -249,14 +295,10 @@ function hydrateFromCloud(rawSlice) {
   // Same shape-check as loadState — a Firestore doc is just as capable of holding a malformed
   // store (a partial write from an older client, say) as localStorage is.
   const slice = window.StateShape.sanitizePersistedSlice(rawSlice);
-  if (slice.prices && !isLocalNewer(state.pricesUpdatedAt, slice.pricesUpdatedAt)) {
-    // Neither side stamped (every doc before this field existed): cloud wins, as it always did.
-    // Otherwise cloud prices are adopted only when they're at least as new as local ones — a
-    // price set on this device whose write never reached Firestore (patchy signal, then a
-    // refresh) must not be rolled back by the stale cloud copy. hydrateAndSubscribe then pushes
-    // the newer local prices up.
-    state.prices = slice.prices;
-    if (slice.pricesUpdatedAt) state.pricesUpdatedAt = slice.pricesUpdatedAt;
+  if (slice.prices) {
+    // Per-product merge (see mergePrices): a price is replaced only by a newer edit of that same
+    // product, never by some other device's whole stale list.
+    state.prices = mergePrices(state, slice).prices;
   }
   if (slice.targetCounts) state.targetCounts = slice.targetCounts;
   if (slice.callfile) {
@@ -292,9 +334,17 @@ function hydrateFromCloud(rawSlice) {
 function setPrice(id, wholesaler, price) {
   const state = loadState();
   if (!state.prices[id]) state.prices[id] = { booker: 0, bestway: 0 };
+  const now = new Date().toISOString();
+  // Freeze the current list stamp onto any older unstamped real price first — see priceStamp —
+  // since bumping pricesUpdatedAt below would otherwise make those look as new as this edit.
+  Object.keys(state.prices).forEach(function (k) {
+    const e = state.prices[k];
+    if (e && !e.at && priceValue(e) > 0 && state.pricesUpdatedAt) e.at = state.pricesUpdatedAt;
+  });
   state.prices[id][wholesaler] = price;
-  state.pricesUpdatedAt = new Date().toISOString();
-  saveState(state);
+  state.prices[id].at = now;
+  state.pricesUpdatedAt = now;
+  saveState(state, false, [id]);
   return state;
 }
 
@@ -763,5 +813,6 @@ window.Storage = {
   setOwnerUid: setOwnerUid,
   clearLocal: clearLocal,
   defaultPersistedSlice: defaultPersistedSlice,
-  hydrateFromCloud: hydrateFromCloud
+  hydrateFromCloud: hydrateFromCloud,
+  mergePrices: mergePrices
 };
