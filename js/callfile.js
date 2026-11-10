@@ -756,6 +756,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
   document.getElementById("add-store-btn").addEventListener("click", openAddStoreModal);
 
+  document.getElementById("delete-callfile-btn").addEventListener("click", function () {
+    const count = Storage.liveStoreKeys(Storage.loadState().callfile.stores).length;
+    if (!count) { alert("There's no call file loaded."); return; }
+    if (!confirm("Delete all " + count + " stores (main and secondary call files), including their visit history, saved ranges and Cycle Brief entries? This can't be undone.")) return;
+    Storage.clearCallfile();
+    // Nothing may keep pointing at a store that no longer exists.
+    callfileUi.logKey = null; callfileUi.rangeKey = null; callfileUi.editKey = null; callfileUi.cbKey = null;
+    callfileUi.filterDate = null;
+    render();
+  });
+
   document.getElementById("reset-all-visits-btn").addEventListener("click", function () {
     const count = Storage.liveStoreKeys(Storage.loadState().callfile.stores).length;
     if (!count) return;

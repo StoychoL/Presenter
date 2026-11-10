@@ -706,8 +706,27 @@ function resetAllVisits() {
   return state;
 }
 
+// Wipes the whole call file — primary and secondary stores with all their visits, ranges and
+// Cycle Brief entries — so a rep can start clean with a new upload. C&C locations and the rep's
+// territory live outside `callfile` and are kept. The fresh updatedAt stamp is what stops the old
+// stores coming back: hydrateFromCloud only adopts a cloud callfile at least this new.
+function clearCallfile() {
+  const state = loadState();
+  state.callfile = {
+    fileName: null,
+    uploadedAt: null,
+    secondaryFileName: null,
+    secondaryUploadedAt: null,
+    updatedAt: new Date().toISOString(),
+    stores: {}
+  };
+  saveState(state, true);
+  return state;
+}
+
 window.Storage = {
   loadState: loadState,
+  clearCallfile: clearCallfile,
   saveState: saveState,
   setPrice: setPrice,
   setQty: setQty,
