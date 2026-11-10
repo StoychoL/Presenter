@@ -51,28 +51,66 @@ function findHeaderKey(keys, target) {
   return keys.find(function (k) { return k.replace(/\s+/g, "").toUpperCase() === target; });
 }
 
-// Reads only OUTLETNAME / OUTLETGRADE / POSTCODE from the sheet; everything else in the export
-// (DIAGEOID, FREQUENCY, VISITCADENCE, TERRITORY, ...) is ignored.
+// First header whose space-stripped, upper-cased form contains any of the fragments.
+function findHeaderKeyLike(keys, fragments) {
+  return keys.find(function (k) {
+    const norm = k.replace(/\s+/g, "").toUpperCase();
+    return fragments.some(function (f) { return norm.indexOf(f) !== -1; });
+  });
+}
+
+function compactUpper(str) {
+  return String(str).replace(/\s+/g, "").toUpperCase();
+}
+
+// The newer export appends the store's own postcode to its name ("Nisa | CR0 0BF"). That just
+// repeats the postcode shown on the card, so drop it — but only when the suffix really is the
+// postcode; other suffixes ("Londis | Post Office Mitcham") carry real information and stay.
+function stripPostcodeSuffix(name, postcode) {
+  const m = name.match(/^(.*\S)\s*\|\s*([^|]+)$/);
+  if (m && postcode && compactUpper(m[2]) === compactUpper(postcode)) return m[1];
+  return name;
+}
+
+// Reads only the store name, grade and postcode columns; everything else in the export is
+// ignored. Two layouts are known: the old one (OUTLETNAME / OUTLETGRADE / POSTCODE) and the
+// newer one ("Outlet Name" / "Outlet Visit Prioritisation NEW" / "Postcode"). Exact headers are
+// tried first, then a looser contains-match, so a renamed grade column doesn't silently skip
+// every row. Returns the headers found and which column was missing, for the caller's alert.
 function parseWorkbook(workbook) {
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const json = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-  if (!json.length) return { rows: [], skipped: 0 };
+  if (!json.length) return { rows: [], skipped: 0, headers: [], missing: [] };
 
   const keys = Object.keys(json[0]);
-  const nameKey = findHeaderKey(keys, "OUTLETNAME");
-  const gradeKey = findHeaderKey(keys, "OUTLETGRADE");
+  const nameKey = findHeaderKey(keys, "OUTLETNAME") || findHeaderKeyLike(keys, ["NAME"]);
+  const gradeKey = findHeaderKey(keys, "OUTLETGRADE") ||
+    findHeaderKeyLike(keys, ["PRIORITISATION", "PRIORITIZATION", "GRADE"]);
   const postcodeKey = findHeaderKey(keys, "POSTCODE");
+  const missing = [];
+  if (!nameKey) missing.push("store name");
+  if (!gradeKey) missing.push("grade");
+  if (missing.length) return { rows: [], skipped: json.length, headers: keys, missing: missing };
 
   let skipped = 0;
   const rows = [];
   json.forEach(function (raw) {
-    const name = String(raw[nameKey] || "").trim();
-    const grade = normalizeGrade(raw[gradeKey]);
     const postcode = String(raw[postcodeKey] || "").trim();
+    const name = stripPostcodeSuffix(String(raw[nameKey] || "").trim(), postcode);
+    const grade = normalizeGrade(raw[gradeKey]);
     if (!name || !grade) { skipped++; return; }
     rows.push({ name: name, grade: grade, postcode: postcode });
   });
-  return { rows: rows, skipped: skipped };
+  return { rows: rows, skipped: skipped, headers: keys, missing: [] };
+}
+
+function noRowsMessage(parsed) {
+  if (parsed.missing && parsed.missing.length) {
+    return "Couldn't find the " + parsed.missing.join(" and ") + " column in this file. Columns found: " +
+      parsed.headers.join(", ") + ".";
+  }
+  return "No usable rows found — every row was missing a store name or had a grade other than " +
+    window.CALLFILE_GRADES.join(" / ") + ".";
 }
 
 function formatDateShort(iso) {
@@ -676,7 +714,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const workbook = XLSX.read(data, { type: "array" });
         const parsed = parseWorkbook(workbook);
         if (!parsed.rows.length) {
-          alert("No usable rows found — expected OUTLETNAME / OUTLETGRADE / POSTCODE columns.");
+          alert(noRowsMessage(parsed));
           return;
         }
         const result = Storage.importCallfile(file.name, parsed.rows);
@@ -712,7 +750,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const workbook = XLSX.read(data, { type: "array" });
         const parsed = parseWorkbook(workbook);
         if (!parsed.rows.length) {
-          alert("No usable rows found — expected OUTLETNAME / OUTLETGRADE / POSTCODE columns.");
+          alert(noRowsMessage(parsed));
           return;
         }
         const result = Storage.importSecondaryCallfile(file.name, parsed.rows);
