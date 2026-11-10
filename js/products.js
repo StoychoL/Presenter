@@ -113,6 +113,11 @@ function render() {
 
 document.addEventListener("DOMContentLoaded", function () {
   render();
+  if (window.RangeHero) {
+    window.RangeHero.mount(document.getElementById("range-hero"), { onTap: window.RangeHero.focusProduct, cta: "Add it to the order" });
+    // Arriving from the Dashboard's banner (index.html -> products.html#RTDCMC).
+    if (location.hash === "#" + window.RangeHero.productId) setTimeout(window.RangeHero.focusProduct, 300);
+  }
 
   document.getElementById("sections").addEventListener("click", function (e) {
     const btn = e.target.closest("button");

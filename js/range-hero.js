@@ -1,5 +1,5 @@
 // Range hero — "Cherry Aboard!" launch banner for Captain Morgan Spiced Gold & Pepsi MAX Cherry,
-// shown at the top of the Range page (partnership.html, #range-hero).
+// shown at the top of the Dashboard, Build Your Order and Range pages (#range-hero on each).
 //
 // Self-contained: one global (window.RangeHero.mount), never touches Storage, and the page's
 // render() only rebuilds #tier-sections, so the banner is mounted once and never re-rendered.
@@ -118,7 +118,8 @@
     stage.appendChild(can);
     stage.appendChild(badge);
 
-    const footer = el("div", "rh-footer", '<span class="rh-tagline">Make your sales, sail.</span><span class="rh-cta">Find it in the range &rsaquo;</span>');
+    const footer = el("div", "rh-footer", '<span class="rh-tagline">Make your sales, sail.</span><span class="rh-cta"></span>');
+    footer.querySelector(".rh-cta").textContent = (opts.cta || "Find it in the range") + " \u203A";
 
     banner.appendChild(canvas);
     banner.appendChild(copy);
@@ -329,5 +330,18 @@
     }
   }
 
-  window.RangeHero = { mount: mount };
+  // The banner's product. Tapping the banner on a page that lists products (Range, Build Your
+  // Order) scrolls to its tile and flashes it; the Dashboard links to products.html#RTDCMC.
+  const PRODUCT_ID = "RTDCMC";
+
+  function focusProduct() {
+    const tile = document.querySelector('.tile[data-id="' + PRODUCT_ID + '"]');
+    if (!tile) return;
+    tile.scrollIntoView({ behavior: "smooth", block: "center" });
+    tile.classList.remove("flash");
+    void tile.offsetWidth; // restart the highlight
+    tile.classList.add("flash");
+  }
+
+  window.RangeHero = { mount: mount, productId: PRODUCT_ID, focusProduct: focusProduct };
 })();

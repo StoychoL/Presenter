@@ -177,21 +177,9 @@ function render() {
   renderStorePicker(state);
 }
 
-// The Range hero's product: tapping the banner brings the rep to its tile.
-var HERO_PRODUCT_ID = "RTDCMC";
-
-function focusHeroProduct() {
-  const tile = document.querySelector('.pp-tile[data-id="' + HERO_PRODUCT_ID + '"]');
-  if (!tile) return;
-  tile.scrollIntoView({ behavior: "smooth", block: "center" });
-  tile.classList.remove("flash");
-  void tile.offsetWidth; // restart the highlight
-  tile.classList.add("flash");
-}
-
 document.addEventListener("DOMContentLoaded", function () {
   render();
-  if (window.RangeHero) window.RangeHero.mount(document.getElementById("range-hero"), { onTap: focusHeroProduct });
+  if (window.RangeHero) window.RangeHero.mount(document.getElementById("range-hero"), { onTap: window.RangeHero.focusProduct });
 
   document.getElementById("tier-sections").addEventListener("click", function (e) {
     const row = e.target.closest(".tick-row");

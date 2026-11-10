@@ -90,6 +90,13 @@ function render() {
 window.render = render;
 
 document.addEventListener("DOMContentLoaded", function () {
+  // "Cherry Aboard!" launch banner (js/range-hero.js); a tap opens Build Your Order on the can.
+  if (window.RangeHero) {
+    window.RangeHero.mount(document.getElementById("range-hero"), {
+      cta: "Order it now",
+      onTap: function () { window.location.href = "products.html#" + window.RangeHero.productId; }
+    });
+  }
   document.getElementById("week-prev").addEventListener("click", function () {
     selectedWeeksAgo = Math.min(WEEKS_BACK, selectedWeeksAgo + 1);
     render();
