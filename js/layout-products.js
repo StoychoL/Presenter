@@ -39,7 +39,7 @@ window.PRODUCTS_LAYOUT = [
     label: "RTD & 4-Packs",
     items: [
       "RTDVColla", "RTDCRanberry", "RTDMP", "RTDRCrush",
-      "RTDJWL", "RTDSice", "RTDCM", "RTDPimms",
+      "RTDJWL", "RTDSice", "RTDCM", "RTDCMC", "RTDPimms",
       "RTDGO", "RTDGP", "RTDGD",
       "CrushLL", "CrushMP", "CrushBP",
       "SmirnoffIce4pack", "GuinnessDraugh", "Guinness0"

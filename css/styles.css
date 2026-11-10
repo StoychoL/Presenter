@@ -919,8 +919,164 @@ main {
 /* ---------- Range (partnership.html) + saved-range pop-up ---------- */
 .tier-panel { --tier-band-bg: #eef0f2; --tier-band-border: #c7ccd1; --tier-label: #4c545c; }
 
-/* Placeholder for the Range hero image (to come) — takes no space while empty. */
+/* ---------- Range hero: "Cherry Aboard!" launch banner (js/range-hero.js) ---------- */
 .range-hero:empty { display: none; }
+.range-hero { margin: 14px 16px 0; }
+
+.rh {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  grid-template-rows: 1fr auto;
+  height: clamp(270px, 56vw, 360px);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #111;
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.22);
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-y;          /* vertical scroll keeps working; horizontal drags tilt the can */
+  -webkit-tap-highlight-color: transparent;
+}
+.rh:active { cursor: grabbing; }
+.rh:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+.rh-canvas { position: absolute; inset: 0; display: block; }
+
+.rh-copy {
+  position: relative;
+  z-index: 2;
+  align-self: start;
+  padding: 18px 0 0 18px;
+  will-change: transform;
+}
+.rh-kicker {
+  display: inline-block;
+  margin: 0 0 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.28);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.rh-title {
+  margin: 0;
+  font-size: clamp(34px, 10.5vw, 60px);
+  line-height: 0.9;
+  font-weight: 900;
+  font-stretch: condensed;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  text-shadow: 0 3px 0 rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.25);
+}
+.rh-sub {
+  margin: 10px 0 0;
+  max-width: 22ch;
+  font-size: clamp(12px, 3.4vw, 15px);
+  font-weight: 700;
+  line-height: 1.25;
+}
+.rh-x { color: #ffd1e6; }
+.rh-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.rh-chips span {
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #fff;
+  color: #111;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.rh-stage {
+  position: relative;
+  z-index: 1;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+/* images/Products/RTDCMC-hero.png is cropped tight to the can, so its height is the can's. */
+.rh-can {
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  height: 84%;
+  width: auto;
+  max-width: none;
+  translate: -50% -50%;         /* composes with the JS-driven transform (float/drag) */
+  pointer-events: none;
+  filter: drop-shadow(0 14px 18px rgba(0,0,0,0.45));
+  will-change: transform;
+}
+.rh-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 10%;
+  width: 46%;
+  height: 16px;
+  margin-left: -23%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(0,0,0,0.6), rgba(0,0,0,0));
+}
+.rh-new {
+  position: absolute;
+  z-index: 3;
+  top: 12%;
+  left: 4%;
+  width: 62px;
+  height: 62px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  color: var(--accent);
+  clip-path: polygon(50% 0%, 61% 15%, 79% 9%, 80% 27%, 97% 32%, 88% 48%, 100% 62%, 83% 70%, 85% 88%, 67% 86%, 57% 100%, 45% 88%, 28% 96%, 24% 78%, 6% 74%, 13% 58%, 0% 45%, 16% 36%, 12% 18%, 31% 17%, 38% 2%);
+}
+.rh-new span {
+  font-size: 16px;
+  font-weight: 900;
+  text-transform: uppercase;
+  transform: rotate(-12deg);
+}
+
+.rh-footer {
+  position: relative;
+  z-index: 2;
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 0 14px 18px;
+}
+.rh-tagline {
+  font-size: clamp(13px, 3.8vw, 17px);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.rh-cta { font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.75); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .rh-new { animation: rh-badge 3.2s ease-in-out infinite; }
+  .rh-cta { animation: rh-nudge 2.4s ease-in-out infinite; }
+}
+@keyframes rh-badge {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(14deg) scale(1.1); }
+}
+@keyframes rh-nudge {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
+}
+
+/* Brief highlight when the hero scrolls the rep to the new product's tile. */
+.pp-tile.flash { animation: rh-flash 1.6s ease-out; }
+@keyframes rh-flash {
+  0%, 35% { box-shadow: 0 0 0 4px var(--accent); }
+  100% { box-shadow: 0 0 0 0 rgba(181,19,107,0); }
+}
 
 /* Background tint only, no border/shadow — the .pp-tile products inside are already cards
    (bordered, own background); wrapping them in a second bordered card would nest cards. */
@@ -2483,4 +2639,9 @@ body.page-map main.map-page {
   color: var(--ink);
   padding: 0 12px;
   font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .rh-new { top: 6%; left: -6%; width: 54px; height: 54px; }
+  .rh-new span { font-size: 14px; }
 }

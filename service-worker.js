@@ -5,7 +5,7 @@
 // explicit allowlist in RUNTIME_CACHE_ORIGINS below — Firebase/Google API calls are never touched.
 // Bump CACHE_NAME whenever app files change to force clients to pick up the new version.
 
-const CACHE_NAME = "diageo-presenter-v80";
+const CACHE_NAME = "diageo-presenter-v81";
 
 const PRECACHE_URLS = [
   "./",
@@ -34,6 +34,7 @@ const PRECACHE_URLS = [
   "./js/vendor/pdfjs/pdf.worker.min.js",
   "./js/products.js",
   "./js/partnership.js",
+  "./js/range-hero.js",
   "./js/callfile.js",
   "./js/callfile-status.js",
   "./js/pp-stats.js",
@@ -101,6 +102,8 @@ const PRECACHE_URLS = [
   "./images/Products/Single/Guinness0.png",
   "./images/Products/Single/GuinnessDraugh.png",
   "./images/Products/Single/RTDCM.png",
+  "./images/Products/Single/RTDCMC.png",
+  "./images/Products/RTDCMC-hero.png",
   "./images/Products/Single/RTDCRanberry.png",
   "./images/Products/Single/RTDGD.png",
   "./images/Products/Single/RTDGO.png",

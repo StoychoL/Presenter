@@ -46,6 +46,7 @@ window.CATALOG = {
   "Guinness0": { name: "Guinness 0.0 Non-Alcoholic (4-Pack)", image: IMG_DIR + "Guinness0.png", caseSize: 6, bookerPrice: 0, bestwayPrice: 0 },
   "GuinnessDraugh": { name: "Guinness Draught (4-Pack)", image: IMG_DIR + "GuinnessDraugh.png", caseSize: 6, bookerPrice: 0, bestwayPrice: 0 },
   "RTDCM": { name: "Captain Morgan Spiced Gold & Pepsi (Can)", image: IMG_DIR + "RTDCM.png", caseSize: 12, bookerPrice: 0, bestwayPrice: 0 },
+  "RTDCMC": { name: "Captain Morgan Spiced Gold & Pepsi Max Cherry (Can)", image: IMG_DIR + "RTDCMC.png", caseSize: 12, bookerPrice: 0, bestwayPrice: 0 },
   "RTDCRanberry": { name: "Smirnoff Vodka & Cranberry (Can)", image: IMG_DIR + "RTDCRanberry.png", caseSize: 12, bookerPrice: 0, bestwayPrice: 0 },
   "RTDGD": { name: "Gordon's Gin & Diet Tonic (Can)", image: IMG_DIR + "RTDGD.png", caseSize: 12, bookerPrice: 0, bestwayPrice: 0 },
   "RTDGO": { name: "Gordon's Gin & Tonic (Can)", image: IMG_DIR + "RTDGO.png", caseSize: 12, bookerPrice: 0, bestwayPrice: 0 },
