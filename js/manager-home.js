@@ -150,7 +150,7 @@ function repStoreRowHtml(entry) {
       '<div class="store-row-bottom">' +
         '<span class="store-meta">' +
           (entry.store.postcode ? escAttr(entry.store.postcode) + " &middot; " : "") +
-          "Last " + formatDateShort(entry.store.lastVisitDate) + " &middot; Next " + formatDateShort(entry.store.nextVisitDate) +
+          "Last " + formatDateShort(entry.store.lastVisitDate) + " &middot; Next " + formatDateShort(nextDueDate(entry.store)) +
         "</span>" +
       "</div>" +
     "</div>"

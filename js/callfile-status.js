@@ -2,12 +2,15 @@
 // place so the red/amber/green business rule can't drift between the two pages that both need it.
 // Reads window.CALLFILE_GRADE_CONFIG from js/layout-callfile.js, so this file must load after it.
 //
-// Status colour is derived at call time from today's date + the store's visit history, not
-// stored — so a new month automatically starts every store back at red with no reset step:
-//   - no visit yet this month        -> red
-//   - Silver/Gold, 1+ visits         -> green
-//   - Platinum, 1 visit              -> amber
-//   - Platinum, 2+ visits            -> green
+// Status colour is derived at call time from a date + the store's visit history, not stored.
+// It's due-date based, from the grade's cadenceWeeks (no monthly reset):
+//   - never visited, or past its next due date       -> red   ("Overdue")
+//   - within its cycle, next visit due within
+//     CALLFILE_DUE_SOON_DAYS                         -> amber ("Due soon")
+//   - within its cycle otherwise                     -> green ("On track")
+// The next due date is always recomputed from the latest visit + the *current* cadence, so a
+// store's stored nextVisitDate (written by Storage.logVisit, possibly under an older cadence) is
+// never what the UI shows — use nextDueDate(store) instead.
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -26,23 +29,52 @@ function currentQuarterKey() {
   return quarterKeyForDate(todayISO());
 }
 
-// Parameterized on an explicit monthKey ("YYYY-MM") so callers can compute coverage for a past
-// month too (manager dashboard's This Month paging, js/home-stats.js), not just "now".
-function statusForMonth(store, monthKey) {
-  const cfg = window.CALLFILE_GRADE_CONFIG[store.grade] || { visitsRequired: 1 };
-  const visitsThisMonth = store.visits.filter(function (d) { return d.slice(0, 7) === monthKey; }).length;
-  if (visitsThisMonth <= 0) return "red";
-  if (visitsThisMonth < cfg.visitsRequired) return "amber";
+// UTC day arithmetic on "YYYY-MM-DD" strings, matching todayISO()'s UTC basis.
+function addDaysISO(dateStr, days) {
+  const d = new Date(dateStr + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function cadenceDays(store) {
+  const cfg = window.CALLFILE_GRADE_CONFIG[store.grade] || { cadenceWeeks: 4 };
+  return cfg.cadenceWeeks * 7;
+}
+
+// Latest visit on or before dateStr (ISO strings sort chronologically). Read from visits[] rather
+// than lastVisitDate, since a back-dated visit sets lastVisitDate to an older date.
+function lastVisitOnOrBefore(store, dateStr) {
+  let best = null;
+  (store.visits || []).forEach(function (d) {
+    if (d <= dateStr && (!best || d > best)) best = d;
+  });
+  return best;
+}
+
+function nextDueDate(store) {
+  const last = lastVisitOnOrBefore(store, "9999-12-31");
+  return last ? addDaysISO(last, cadenceDays(store)) : null;
+}
+
+// Status as it stood on dateStr — parameterized so the dashboards can evaluate a past month
+// (as of its last day) too, not just "now".
+function statusAsOf(store, dateStr) {
+  const last = lastVisitOnOrBefore(store, dateStr);
+  if (!last) return "red";
+  const due = addDaysISO(last, cadenceDays(store));
+  if (due < dateStr) return "red";
+  const soonDays = window.CALLFILE_DUE_SOON_DAYS == null ? 14 : window.CALLFILE_DUE_SOON_DAYS;
+  if (due <= addDaysISO(dateStr, soonDays)) return "amber";
   return "green";
 }
 
 function storeStatus(store) {
-  return statusForMonth(store, todayISO().slice(0, 7));
+  return statusAsOf(store, todayISO());
 }
 
 function statusLabel(status) {
-  if (status === "red") return "Not visited";
-  if (status === "amber") return "1 visit";
+  if (status === "red") return "Overdue";
+  if (status === "amber") return "Due soon";
   return "On track";
 }
 

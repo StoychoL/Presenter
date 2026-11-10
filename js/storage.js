@@ -90,13 +90,18 @@ function loadState() {
     // otherwise throw on every page load with no way for the rep to recover.
     const parsed = window.StateShape.sanitizePersistedSlice(raw_parsed);
 
-    if (parsed.prices) {
+    // base.prices/base.targetCounts are built from window.CATALOG/window.PP_LAYOUT. On a page that
+    // didn't load those, filtering against the empty base would leave {} here — and the next
+    // pushState would overwrite the rep's real cloud prices/targets with {}. Keep the saved copy.
+    if (parsed.prices && !window.CATALOG) base.prices = parsed.prices;
+    if (parsed.targetCounts && !window.PP_LAYOUT) base.targetCounts = parsed.targetCounts;
+    if (parsed.prices && window.CATALOG) {
       Object.keys(base.prices).forEach(function (id) {
         if (parsed.prices[id]) base.prices[id] = parsed.prices[id];
       });
     }
     if ("pricesUpdatedAt" in parsed) base.pricesUpdatedAt = parsed.pricesUpdatedAt;
-    if (parsed.targetCounts) {
+    if (parsed.targetCounts && window.PP_LAYOUT) {
       Object.keys(base.targetCounts).forEach(function (tierKey) {
         // One-time migration: Tier 3's default target changed from 20 to 23 (Core Range 17 +
         // Bonus Range 6 = 23 total products). A saved value of exactly 20 predates that fix, so
@@ -609,8 +614,14 @@ function logVisit(key, dateStr, cadenceWeeks) {
   // RangeError) — refuse it outright rather than half-applying the visit.
   if (!store || !window.StateShape.isDate(dateStr)) return state;
   // Each tap is a distinct visit event — a Platinum store visited twice in one day must still
-  // count as 2 toward its monthly requirement, so visits are never deduped by date.
+  // be recorded as 2 visits, so visits are never deduped by date.
   store.visits.push(dateStr);
+  // A back-dated visit (older than one already logged) must not move "Last visit" backwards.
+  if (store.lastVisitDate && store.lastVisitDate > dateStr) {
+    state.callfile.updatedAt = new Date().toISOString();
+    saveState(state, true);
+    return state;
+  }
   store.lastVisitDate = dateStr;
   const next = new Date(dateStr);
   next.setDate(next.getDate() + cadenceWeeks * 7);

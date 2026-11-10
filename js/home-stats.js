@@ -136,16 +136,20 @@ window.HomeStats = (function () {
     return "Q" + qKey.slice(idx + 2) + " " + qKey.slice(0, idx);
   }
 
-  // Coverage for the local month `monthsAgo` months before the current one (0 = this month),
-  // overall and per grade. "Covered" reuses statusForMonth()'s green definition (visits in that
-  // month >= CALLFILE_GRADE_CONFIG[grade].visitsRequired) — the exact rule Call File already shows
-  // per store, just aggregated here for an arbitrary month instead of only "now".
-  //
-  // "Partial" (statusForMonth() === "amber") is tracked separately as info only — it never adds to
-  // coveredTotal/pct. In practice this only ever fires for Platinum stores (1 of their 2 required
-  // visits done that month); Gold/Silver jump straight red -> green since they only need 1 visit.
+  // Last calendar day of a "YYYY-MM" month, as "YYYY-MM-DD" (UTC, matching todayISO()).
+  function monthEndISO(monthKey) {
+    const parts = monthKey.split("-").map(Number);
+    return new Date(Date.UTC(parts[0], parts[1], 0)).toISOString().slice(0, 10);
+  }
+
+  // Coverage for the month `monthsAgo` months before the current one (0 = this month), overall
+  // and per grade, using the same due-date rule Call File shows per store (statusAsOf() in
+  // js/callfile-status.js). The current month is evaluated as of today; a past month as of its
+  // last day. "Covered" = within its visit cycle (green or amber). partialTotal counts the amber
+  // ones — still covered, but due again within CALLFILE_DUE_SOON_DAYS — shown as info.
   function monthCoverageStats(stores, monthsAgo) {
     const monthKey = monthKeyOffset(monthsAgo || 0);
+    const asOf = monthsAgo ? monthEndISO(monthKey) : todayISO();
     const perGrade = {};
     (window.CALLFILE_GRADES || []).forEach(function (g) { perGrade[g] = { covered: 0, total: 0 }; });
 
@@ -158,13 +162,12 @@ window.HomeStats = (function () {
       if (!perGrade[store.grade]) return;
       storeTotal++;
       perGrade[store.grade].total++;
-      const status = statusForMonth(store, monthKey);
-      if (status === "green") {
+      const status = statusAsOf(store, asOf);
+      if (status !== "red") {
         coveredTotal++;
         perGrade[store.grade].covered++;
-      } else if (status === "amber") {
-        partialTotal++;
       }
+      if (status === "amber") partialTotal++;
     });
 
     return { coveredTotal: coveredTotal, partialTotal: partialTotal, storeTotal: storeTotal, perGrade: perGrade, monthKey: monthKey };
@@ -185,8 +188,8 @@ window.HomeStats = (function () {
   // Storage.logCycleBrief), so this is what actually makes the totals "reset" every quarter: a
   // past quarter's entries simply stop matching the *current* qKey once today's date rolls over,
   // but remain summable here by asking for that quarter specifically. Mirrors monthCoverageStats()
-  // above, just with quarterKeyForDate() (js/callfile-status.js) instead of statusForMonth()'s
-  // implicit monthly bucketing. qKey is included on the returned object purely for the caller to
+  // above, just with quarterKeyForDate() (js/callfile-status.js) instead of a monthly
+  // bucketing. qKey is included on the returned object purely for the caller to
   // label the period with (quarterLabel()) — cycleBriefBodyHtml() reads direct/influence/pos plus
   // the derived totalNpds (direct + influence only).
   function cycleBriefStats(stores, quartersAgo) {
@@ -286,7 +289,7 @@ window.HomeStats = (function () {
     const partialHtml = mo.partialTotal > 0
       ? '<p class="coverage-partial"><span class="dot amber"></span>' +
           mo.partialTotal + (mo.partialTotal === 1 ? " store" : " stores") +
-          " partially visited — not counted toward coverage</p>"
+          " due again in the next 2 weeks</p>"
       : "";
     return (
       '<div class="coverage-row">' +

@@ -181,7 +181,7 @@ function popupHtml(store, status, key) {
         (store.secondary ? ' <span class="secondary-badge">Secondary</span>' : "") + "</div>" +
       '<div class="map-popup-row">' + escAttr(store.postcode) + "</div>" +
       '<div class="map-popup-row">Last visit: ' + formatDateShort(store.lastVisitDate) + "</div>" +
-      '<div class="map-popup-row">Next visit: ' + formatDateShort(store.nextVisitDate) + "</div>" +
+      '<div class="map-popup-row">Next visit: ' + formatDateShort(nextDueDate(store)) + "</div>" +
       cbRow +
       '<div class="map-popup-actions">' +
         rangeBtn +

@@ -512,6 +512,7 @@ main {
 .grade-dot-platinum { background: #5b6472; }
 .grade-dot-gold { background: var(--gold); }
 .grade-dot-silver { background: #9aa1a8; }
+.grade-dot-bronze { background: #a0673a; }
 .grade-dot-direct { background: var(--accent); }
 .grade-dot-influence { background: var(--gold); }
 .grade-dot-pos { background: var(--good); }
@@ -1178,6 +1179,14 @@ main {
 .grade-tab-platinum { background: #5b6472; }
 .grade-tab-gold { background: var(--gold); }
 .grade-tab-silver { background: #9aa1a8; }
+.grade-tab-bronze { background: #a0673a; }
+
+/* Five tabs (All + four grades) share one row on a phone: tighten so labels + counts fit. */
+@media (max-width: 480px) {
+  .grade-tabs { gap: 4px; padding: 12px 8px 0; }
+  .grade-tab { font-size: 12px; padding: 4px 2px; line-height: 1.2; }
+  .grade-tab-count { display: block; margin-left: 0; font-size: 11px; }
+}
 
 .grade-summary {
   display: flex;

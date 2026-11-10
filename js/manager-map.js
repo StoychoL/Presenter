@@ -100,7 +100,7 @@ function popupHtml(entry) {
         '<span class="status-pill status-' + status + '-pill">' + statusLabel(status) + "</span></div>" +
       '<div class="map-popup-row">' + escAttr(entry.store.postcode) + "</div>" +
       '<div class="map-popup-row">Last visit: ' + formatDateShort(entry.store.lastVisitDate) + "</div>" +
-      '<div class="map-popup-row">Next visit: ' + formatDateShort(entry.store.nextVisitDate) + "</div>" +
+      '<div class="map-popup-row">Next visit: ' + formatDateShort(nextDueDate(entry.store)) + "</div>" +
       '<div class="map-popup-row">Rep: ' + escAttr(window.ManagerData.displayName(entry)) + "</div>" +
       '<div class="map-popup-row">Territory: ' + escAttr(entry.repTerritory || "Unassigned") + "</div>" +
     "</div>"

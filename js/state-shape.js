@@ -29,7 +29,7 @@ window.StateShape = (function () {
   }
   function dateOrNull(s) { return isDate(s) ? s : null; }
 
-  function grades() { return window.CALLFILE_GRADES || ["Platinum", "Gold", "Silver"]; }
+  function grades() { return window.CALLFILE_GRADES || ["Platinum", "Gold", "Silver", "Bronze"]; }
 
   function sanitizeSnapshot(snap) {
     if (!isObj(snap) || typeof snap.tierKey !== "string" || !isDate(snap.date)) return null;

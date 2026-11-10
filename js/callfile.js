@@ -40,8 +40,9 @@ function formatDate(iso) {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+// A trailing "BW" (Bestway) suffix is dropped: "Bronze BW" counts as plain Bronze.
 function normalizeGrade(value) {
-  const v = String(value == null ? "" : value).trim().toLowerCase();
+  const v = String(value == null ? "" : value).trim().toLowerCase().replace(/\s*bw$/, "");
   const match = window.CALLFILE_GRADES.find(function (g) { return g.toLowerCase() === v; });
   return match || null;
 }
@@ -91,7 +92,7 @@ function cbSummaryText(entry) {
 function storeRowHtml(key, store, visitCount) {
   const status = storeStatus(store);
   const meta = (store.postcode ? escAttr(store.postcode) + " &middot; " : "") +
-    "Last " + formatDateShort(store.lastVisitDate) + " &middot; Next " + formatDateShort(store.nextVisitDate);
+    "Last " + formatDateShort(store.lastVisitDate) + " &middot; Next " + formatDateShort(nextDueDate(store));
   const rangeBtn = '<button class="btn small secondary" data-action="range" data-key="' + escAttr(key) + '">Range</button>';
   const cbBtn = '<button class="btn small secondary" data-action="cb" data-key="' + escAttr(key) + '">CB</button>';
   const lastCb = lastCbEntry(store);
@@ -282,17 +283,13 @@ function gradeTabsHtml(state, byGrade) {
   }).join("");
 }
 
-// Platinum (and All, since it can contain Platinum stores) needs a Partial container (a rep can
-// log 1 of the 2 required visits and land mid-way); Gold/Silver never can, since storeStatus()
-// only returns "amber" when visits-so-far is below cfg.visitsRequired but still >0 — and those
-// grades require just 1 visit to go green.
-function statusGroupsForGrade(grade) {
-  const groups = [
-    { status: "red", label: "Not visited" },
-    { status: "amber", label: "Partial" },
+// Every grade can be in any of the three states (see storeStatus() in js/callfile-status.js).
+function statusGroupsForGrade() {
+  return [
+    { status: "red", label: "Overdue" },
+    { status: "amber", label: "Due soon" },
     { status: "green", label: "On Track" }
   ];
-  return (grade === "Platinum" || grade === "All") ? groups : groups.filter(function (g) { return g.status !== "amber"; });
 }
 
 function statusGroupHtml(label, status, entries) {
@@ -309,8 +306,9 @@ function statusGroupHtml(label, status, entries) {
   );
 }
 
-// A store just moved into "amber"/"green" by logging a visit should surface at the top of its
-// new group rather than wherever the grade-wide nextVisitDate sort happened to leave it.
+// A store just moved into "green" by logging a visit should surface at the top of its group
+// rather than wherever the grade-wide next-due-date sort happened to leave it. Red/amber keep
+// that due-date order, so the most urgent store is first.
 function byRecentVisit(a, b) {
   const al = a.store.lastVisitDate || "";
   const bl = b.store.lastVisitDate || "";
@@ -322,15 +320,14 @@ function gradePanelHtml(grade, entries) {
   if (!entries.length) return "";
   const byStatus = { red: [], amber: [], green: [] };
   entries.forEach(function (e) { byStatus[storeStatus(e.store)].push(e); });
-  byStatus.amber.sort(byRecentVisit);
   byStatus.green.sort(byRecentVisit);
   const groups = statusGroupsForGrade(grade).map(function (g) {
     return statusGroupHtml(g.label, g.status, byStatus[g.status]);
   }).join("");
   return (
     '<div class="grade-summary">' +
-      '<span class="dot red"></span>' + byStatus.red.length + " not visited &nbsp; " +
-      '<span class="dot amber"></span>' + byStatus.amber.length + " partial &nbsp; " +
+      '<span class="dot red"></span>' + byStatus.red.length + " overdue &nbsp; " +
+      '<span class="dot amber"></span>' + byStatus.amber.length + " due soon &nbsp; " +
       '<span class="dot green"></span>' + byStatus.green.length + " on track" +
     "</div>" +
     groups
@@ -592,8 +589,8 @@ function render() {
 
   CALLFILE_TABS.forEach(function (g) {
     byGrade[g].sort(function (a, b) {
-      const an = a.store.nextVisitDate || "0000-00-00";
-      const bn = b.store.nextVisitDate || "0000-00-00";
+      const an = nextDueDate(a.store) || "0000-00-00";
+      const bn = nextDueDate(b.store) || "0000-00-00";
       if (an !== bn) return an < bn ? -1 : 1;
       return a.store.name.localeCompare(b.store.name);
     });
