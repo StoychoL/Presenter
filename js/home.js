@@ -73,7 +73,8 @@ function render() {
 
   const territoryBadge = document.getElementById("territory-badge");
   if (state.repTerritory) {
-    territoryBadge.textContent = "Territory " + state.repTerritory;
+    // Free text: don't print "Territory Territory 15".
+    territoryBadge.textContent = /^territory\b/i.test(state.repTerritory) ? state.repTerritory : "Territory " + state.repTerritory;
     territoryBadge.classList.remove("hidden");
   } else {
     territoryBadge.classList.add("hidden");

@@ -989,12 +989,8 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   document.getElementById("territory-save-btn").addEventListener("click", function () {
-    const raw = document.getElementById("territory-code-input").value.trim();
-    if (raw && !/^[A-E]\d{3}$/i.test(raw)) {
-      alert("Territory code should be a letter A-E followed by 3 digits, e.g. E006.");
-      return;
-    }
-    Storage.setRepTerritory(raw);
+    // Any letters/numbers (e.g. "Territory 15", "ABCD", "E006") — no fixed format any more.
+    Storage.setRepTerritory(document.getElementById("territory-code-input").value);
     callfileUi.territoryModalOpen = false;
     render();
   });

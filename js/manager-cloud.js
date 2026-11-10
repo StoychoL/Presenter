@@ -55,6 +55,16 @@ function loadAllReps() {
         callfile: window.StateShape.sanitizeCallfile(data.callfile)
       });
     });
+    // Territories are free text, so "Territory 15" and "territory  15" must be one territory:
+    // every rep's value is replaced by the first spelling seen for its case/space-insensitive
+    // key. The Dashboard grid and Map filter then group and match by plain string equality.
+    const spelling = {};
+    reps.forEach(function (rep) {
+      if (!rep.repTerritory) return;
+      const key = rep.repTerritory.trim().replace(/\s+/g, " ").toLowerCase();
+      if (!spelling[key]) spelling[key] = rep.repTerritory.trim().replace(/\s+/g, " ");
+      rep.repTerritory = spelling[key];
+    });
     window.ManagerData.reps = reps;
     rerenderIfPossible();
   }).catch(function (err) {

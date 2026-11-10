@@ -71,7 +71,7 @@ function defaultState() {
     // above, these survive indefinitely and no Reset button touches them. Unlike callfile.stores,
     // entries here have no grade/visits — they're just a name + postcode to place a pin.
     ccLocations: [],
-    // The rep's assigned territory code (e.g. "E006"), set via Call File's "Set Territory" button.
+    // The rep's territory, free text (e.g. "Territory 15" or "E006"), set via Call File's "Set Territory" button.
     // Purely a self-reported label today — no manager-side feature reads it yet — but it's synced
     // per-rep the same as cashCarry/ccLocations so a future manager dashboard can key off it.
     repTerritory: null
@@ -719,7 +719,8 @@ function saveCashCarryDraft(fields) {
 
 function setRepTerritory(code) {
   const state = loadState();
-  state.repTerritory = (code || "").trim().toUpperCase() || null;
+  // Kept as typed (trimmed, spaces collapsed, max 40 chars) — any format, e.g. "Territory 15".
+  state.repTerritory = String(code || "").trim().replace(/\s+/g, " ").slice(0, 40) || null;
   saveState(state);
   return state;
 }

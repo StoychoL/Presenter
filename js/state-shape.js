@@ -159,7 +159,7 @@ window.StateShape = (function () {
   }
 
   function sanitizeRepTerritory(v) {
-    const s = str(v).trim().toUpperCase();
+    const s = str(v).trim().replace(/\s+/g, " ").slice(0, 40);
     return s ? s : null;
   }
 

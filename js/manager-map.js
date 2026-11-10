@@ -82,7 +82,7 @@ function populateTerritoryFilter(reps, selected) {
   const select = document.getElementById("territory-filter");
   const codes = Array.from(new Set(
     reps.map(function (r) { return r.repTerritory; }).filter(Boolean)
-  )).sort();
+  )).sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
 
   const options = ['<option value="' + ALL_TERRITORIES + '">All territories</option>']
     .concat(codes.map(function (c) { return '<option value="' + escAttr(c) + '">' + escAttr(c) + "</option>"; }));

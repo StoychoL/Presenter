@@ -5,10 +5,9 @@
 // same function Call File and the rep Map already share — so the compliance rule can't drift
 // between the rep-facing pages and this manager view.
 
-// Fixed A-E set enforced by Call File's "Set Territory" validation regex (js/callfile.js,
-// /^[A-E]\d{3}$/i) — always shown as dropdown options regardless of which letters current reps
-// actually have, so a manager can pre-select a letter before any rep has claimed it.
-const TERRITORY_LETTERS = ["A", "B", "C", "D", "E"];
+// Territories are free text (Call File's "Set Territory"), so the filter lists whichever
+// territories reps have actually set — see populateLetterFilter(). manager-cloud.js has already
+// merged spellings that differ only by case/spacing.
 const ALL_LETTERS = "__all__";
 
 // How far each panel's back-arrow can page. WEEKS_BACK matches js/home.js's own rep-dashboard cap
@@ -190,15 +189,15 @@ function renderTerritoryDetail(groups) {
   section.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-// Options never change (fixed A-E list), so this only needs to run once on page load, not on
-// every render() — unlike the Map page's dynamic populateTerritoryFilter(), which rebuilds its
-// list from whatever codes currently exist.
-function populateLetterFilter(selected) {
+// Rebuilt on every render() from the territories reps have set (same idea as the Map page's
+// populateTerritoryFilter()). A selected territory that no longer exists falls back to "All".
+function populateLetterFilter(codes) {
   const select = document.getElementById("territory-letter-filter");
-  select.innerHTML = ['<option value="' + ALL_LETTERS + '">All letters</option>']
-    .concat(TERRITORY_LETTERS.map(function (l) { return '<option value="' + l + '">' + l + "</option>"; }))
+  if (codes.indexOf(managerUi.letterFilter) === -1) managerUi.letterFilter = ALL_LETTERS;
+  select.innerHTML = ['<option value="' + ALL_LETTERS + '">All territories</option>']
+    .concat(codes.map(function (c) { return '<option value="' + escAttr(c) + '">' + escAttr(c) + "</option>"; }))
     .join("");
-  select.value = selected;
+  select.value = managerUi.letterFilter;
 }
 
 function render() {
@@ -223,7 +222,8 @@ function render() {
   }
 
   const groups = groupByTerritory(reps);
-  const allCodes = Object.keys(groups).sort(function (a, b) { return a < b ? -1 : a > b ? 1 : 0; });
+  // Natural sort, so "Territory 2" comes before "Territory 15".
+  const allCodes = Object.keys(groups).sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
 
   if (!allCodes.length) {
     grid.innerHTML = "";
@@ -233,17 +233,10 @@ function render() {
     return;
   }
 
+  populateLetterFilter(allCodes);
   const codes = managerUi.letterFilter === ALL_LETTERS
     ? allCodes
-    : allCodes.filter(function (c) { return c.charAt(0).toUpperCase() === managerUi.letterFilter; });
-
-  if (!codes.length) {
-    grid.innerHTML = "";
-    empty.textContent = "No reps assigned to territory letter " + managerUi.letterFilter + " yet.";
-    empty.classList.remove("hidden");
-    renderTerritoryDetail({});
-    return;
-  }
+    : allCodes.filter(function (c) { return c === managerUi.letterFilter; });
 
   empty.classList.add("hidden");
   grid.innerHTML = codes.map(function (code) {
@@ -253,7 +246,6 @@ function render() {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-  populateLetterFilter(managerUi.letterFilter);
   render();
 
   document.getElementById("territory-letter-filter").addEventListener("change", function (e) {
