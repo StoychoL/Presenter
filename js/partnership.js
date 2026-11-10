@@ -1,17 +1,12 @@
-// Partnership Program page logic: product tiles grouped by tier/section, each with an explicit
-// tick box underneath. Tapping the tile anywhere outside that tick box opens a magnified product
-// modal (see openProductModal/renderModal) instead of toggling stock.
+// Range page logic (partnership.html — the old Partnership Program tab). One plain list of every
+// product (js/layout-pp.js's single "range" tier), each tile with an explicit "In stock" tick box
+// underneath; tapping the tile anywhere else opens a magnified product modal. The top-right badge
+// is just ticked / total. Ticks are session-only (ppSession.checked) and can be frozen onto a
+// store via "Save to Store" (ppHistory, reviewed from Call File/Map).
 
-var ppUi = { wasAbove90: false, zoomId: null, storePickerOpen: false };
+var ppUi = { wasComplete: false, zoomId: null, storePickerOpen: false };
 
-// All three tiers now share the same "Stock Diageo & Earn" summary graphic (formerly
-// images/PP/tier-1.png etc., one differently-branded poster per tier) — see js/pp-deck.js's
-// use of the same asset for the Partnership Program pitch deck.
-var HERO_IMAGES = {
-  tier1: "images/pp-deck-hero.jpg",
-  tier2: "images/pp-deck-hero.jpg",
-  tier3: "images/pp-deck-hero.jpg"
-};
+var RANGE_KEY = "range";
 
 function escAttr(str) {
   const div = document.createElement("div");
@@ -34,19 +29,10 @@ function casePriceFor(state, id) {
   return (p && p.booker) || 0;
 }
 
-function tierTabsHtml(state) {
-  return Object.keys(window.PP_LAYOUT).map(function (tierKey) {
-    const tier = window.PP_LAYOUT[tierKey];
-    const active = state.ppSession.activeTier === tierKey;
-    return '<button class="' + (active ? "active" : "") + '" data-tier="' + tierKey + '">' + escAttr(tier.label) + "</button>";
-  }).join("");
-}
-
-function tileHtml(id, checked, isJumped) {
+function tileHtml(id, checked) {
   const product = window.CATALOG[id];
   return (
-    '<div class="tile pp-tile' + (isJumped ? " bonus-jumped" : "") + '" data-id="' + id + '">' +
-      (isJumped ? '<span class="bonus-tag">Bonus</span>' : "") +
+    '<div class="tile pp-tile" data-id="' + id + '">' +
       '<img src="' + product.image + '" alt="' + escAttr(product.name) + '" />' +
       '<label class="tick-row' + (checked ? " checked" : "") + '" data-action="toggle" data-id="' + id + '">' +
         '<input type="checkbox" ' + (checked ? "checked" : "") + " />" +
@@ -56,34 +42,16 @@ function tileHtml(id, checked, isJumped) {
   );
 }
 
-// Products ticked in a non-core section visually "jump" up into the Core Range section (see
-// layout-pp.js header comment) without changing what the Core-100% gate itself requires — the
-// gate always reads from the section's own fixed `items` list (see coreStats), never this.
-function jumpedItems(tier, section, state) {
-  if (!section.isCore) return [];
+function rangeTier() {
+  return window.PP_LAYOUT[RANGE_KEY];
+}
+
+function rangeItems() {
   const ids = [];
-  tier.sections.forEach(function (s) {
-    if (s === section || s.isCore || !s.promoteOnCheck) return;
-    s.items.forEach(function (id) { if (state.ppSession.checked[id]) ids.push(id); });
-  });
+  rangeTier().sections.forEach(function (section) { section.items.forEach(function (id) { ids.push(id); }); });
   return ids;
 }
 
-// What a section should actually render: a `promoteOnCheck` non-core section hides items that
-// have jumped up to Core Range; the Core Range section shows its fixed items plus whatever
-// jumped up into it. Sections without `promoteOnCheck` (e.g. Tier 3's Bonus Range) render
-// unchanged, exactly as before.
-function sectionItemsToRender(tier, section, state) {
-  if (!section.isCore) {
-    if (!section.promoteOnCheck) return section.items;
-    return section.items.filter(function (id) { return !state.ppSession.checked[id]; });
-  }
-  return section.items.concat(jumpedItems(tier, section, state));
-}
-
-// Thin wrapper over js/pp-stats.js's parameterized version — builds a Set from the live
-// ppSession.checked map so behavior/output here is unchanged, while the same math is also
-// reusable by Call File/Map's range-snapshot editor against a frozen snapshot's checkedIds.
 function checkedSetFromState(state) {
   const set = new Set();
   Object.keys(state.ppSession.checked).forEach(function (id) {
@@ -92,70 +60,10 @@ function checkedSetFromState(state) {
   return set;
 }
 
-function sectionGateStats(state, section) {
-  return window.PPStats.sectionGateStats(section, checkedSetFromState(state));
-}
-
-function gateTagHtml(section, state, stats) {
-  if (section.isCore) {
-    return ' <span class="core-status ' + (stats.coreComplete ? "complete" : "partial") + '">' +
-      (stats.coreComplete ? "✓ Complete" : stats.coreCheckedCount + "/" + stats.coreTotal) +
-    "</span>";
-  }
-  const gate = sectionGateStats(state, section);
-  if (!gate) return "";
-  if (section.gate.hideTag) return "";
-  const parts = gate.groups.map(function (g) { return g.label + " " + g.checked + "/" + g.total; }).join(" · ");
-  return ' <span class="core-status ' + (gate.complete ? "complete" : "partial") + '">' +
-    (gate.complete ? "✓ " + parts : parts) +
-  "</span>";
-}
-
-function sectionHtml(tier, section, state, stats) {
-  const items = sectionItemsToRender(tier, section, state);
-  if (items.length === 0 && !section.isCore) return null;
-  const coreIds = section.isCore ? new Set(section.items) : null;
-  const tiles = items.map(function (id) {
-    const isJumped = !section.isCore ? false : !coreIds.has(id);
-    return tileHtml(id, !!state.ppSession.checked[id], isJumped);
-  }).join("");
-  return (
-    '<section class="category">' +
-      "<h3>" + escAttr(section.label) + gateTagHtml(section, state, stats) + "</h3>" +
-      '<div class="tile-grid">' + tiles + "</div>" +
-    "</section>"
-  );
-}
-
-function coreStats(state, tier) {
-  return window.PPStats.coreStats(tier, checkedSetFromState(state));
-}
-
-// Builds the tier-reward line's parenthetical from whatever gates the tier actually has, so it
-// never drifts out of sync with layout-pp.js (e.g. Tier 3's Bonus Range quota, Tier 1/2's plain
-// Core Range requirement).
-function gateSummaryText(tier) {
-  const parts = ["Core Range 100% stocked"];
-  tier.sections.forEach(function (section) {
-    // hideTag sections (e.g. Tier 2's Captain Morgan/Gordon's pairs) already hide their gate tag
-    // on the page — skip them here too so the reward line doesn't surface a breakdown the rep
-    // never sees rendered anywhere else.
-    if (!section.gate || section.gate.hideTag) return;
-    const groupText = section.gate.groups.map(function (g) {
-      return "at least " + g.min + " of " + g.items.length + " " + g.label;
-    }).join(" and ");
-    parts.push(section.label + ": " + groupText);
-  });
-  return parts.join("; ");
-}
-
-function tierCheckedCount(state, tier) {
-  return window.PPStats.tierCheckedCount(tier, checkedSetFromState(state));
-}
-
-function tierStats(state, tierKey) {
-  const tier = window.PP_LAYOUT[tierKey];
-  return window.PPStats.tierStats(tier, state.targetCounts[tierKey] || 1, checkedSetFromState(state));
+// Ticked ids within the range, in list order — what gets frozen into a store's snapshot.
+function rangeCheckedIds(state) {
+  const set = checkedSetFromState(state);
+  return rangeItems().filter(function (id) { return set.has(id); });
 }
 
 function openProductModal(id) {
@@ -197,13 +105,6 @@ function renderModal(state) {
   document.getElementById("modal-checkbox").checked = checked;
 
   modal.classList.remove("hidden");
-}
-
-// All product ids checked within a tier (across every section, core + bonus/premium) — this is
-// what gets frozen into a Call File snapshot, since ppSession.checked is a flat map shared across
-// tiers (core range ids are the same across tier1/2/3).
-function tierCheckedIds(tier, state) {
-  return window.PPStats.tierCheckedIds(tier, checkedSetFromState(state));
 }
 
 function openStorePicker() {
@@ -252,40 +153,25 @@ function renderStorePicker(state) {
 
 function render() {
   const state = Storage.loadState();
-  const tierKey = state.ppSession.activeTier;
-  const tier = window.PP_LAYOUT[tierKey];
+  const items = rangeItems();
+  const checkedCount = rangeCheckedIds(state).length;
 
-  document.getElementById("tier-tabs").innerHTML = tierTabsHtml(state);
+  document.getElementById("tier-sections").innerHTML =
+    '<section class="category"><div class="tile-grid">' +
+      items.map(function (id) { return tileHtml(id, !!state.ppSession.checked[id]); }).join("") +
+    "</div></section>";
 
-  document.getElementById("tier-panel").className = "tier-panel theme-" + (tierKey === "tier2" ? "gold" : "silver");
-  const heroImg = document.getElementById("tier-hero-img");
-  heroImg.src = HERO_IMAGES[tierKey];
-  heroImg.alt = tier.label + " Retailer Partnership Programme poster";
+  document.getElementById("progress-frac").textContent = checkedCount + " / " + items.length;
 
-  const stats = tierStats(state, tierKey);
-
-  const rewardCondition = stats.unlockCount != null
-    ? stats.unlockCount + " of " + state.targetCounts[tierKey]
-    : "90%+ of " + state.targetCounts[tierKey];
-  document.getElementById("tier-reward").textContent =
-    escAttr(tier.label) + " — £" + tier.reward + " reward at " + rewardCondition +
-    " required products stocked (" + gateSummaryText(tier) + ")";
-
-  document.getElementById("tier-sections").innerHTML = tier.sections.map(function (section) {
-    return sectionHtml(tier, section, state, stats);
-  }).filter(function (html) { return html !== null; }).join("");
-
-  document.getElementById("progress-frac").textContent = stats.checkedCount + " / " + stats.target;
-  document.getElementById("progress-pct").textContent = stats.pct + "%";
-
+  // A little celebration once every product is ticked.
   const badge = document.getElementById("progress-badge");
-  const isCelebrating = stats.unlocked;
-  if (isCelebrating && !ppUi.wasAbove90) {
+  const complete = items.length > 0 && checkedCount === items.length;
+  if (complete && !ppUi.wasComplete) {
     badge.classList.remove("celebrate");
     void badge.offsetWidth; // restart animation
   }
-  badge.classList.toggle("celebrate", isCelebrating);
-  ppUi.wasAbove90 = isCelebrating;
+  badge.classList.toggle("celebrate", complete);
+  ppUi.wasComplete = complete;
 
   renderModal(state);
   renderStorePicker(state);
@@ -293,15 +179,6 @@ function render() {
 
 document.addEventListener("DOMContentLoaded", function () {
   render();
-
-  document.getElementById("tier-tabs").addEventListener("click", function (e) {
-    const btn = e.target.closest("button[data-tier]");
-    if (!btn) return;
-    Storage.setActiveTier(btn.dataset.tier);
-    ppUi.wasAbove90 = false;
-    ppUi.zoomId = null;
-    render();
-  });
 
   document.getElementById("tier-sections").addEventListener("click", function (e) {
     const row = e.target.closest(".tick-row");
@@ -357,42 +234,26 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!btn) return;
     const key = btn.dataset.key;
     const state = Storage.loadState();
-    const tierKey = state.ppSession.activeTier;
-    const tier = window.PP_LAYOUT[tierKey];
-    const stats = tierStats(state, tierKey);
     const store = state.callfile.stores[key];
-    Storage.savePPSnapshot(key, window.PPStats.buildSnapshot(tierKey, tierCheckedIds(tier, state), stats.target, todayISO()));
+    const ids = rangeCheckedIds(state);
+    const total = rangeItems().length;
+    Storage.savePPSnapshot(key, window.PPStats.buildSnapshot(RANGE_KEY, ids, total, todayISO()));
     closeStorePicker();
-    alert("Saved " + tier.label + " range for " + store.name + " — " + stats.checkedCount + "/" + stats.target + " (" + stats.pct + "%)");
+    alert("Saved range for " + store.name + " — " + ids.length + "/" + total);
     render();
   });
 
   document.getElementById("select-all-btn").addEventListener("click", function () {
-    const state = Storage.loadState();
-    const tier = window.PP_LAYOUT[state.ppSession.activeTier];
-    if (confirm("Tick every product in " + tier.label + "? This can't be undone item-by-item.")) {
-      Storage.selectAllTier(state.ppSession.activeTier);
-      render();
-    }
-  });
-
-  document.getElementById("target-edit").addEventListener("click", function () {
-    const state = Storage.loadState();
-    const tierKey = state.ppSession.activeTier;
-    const current = state.targetCounts[tierKey];
-    const input = prompt("Required product count for " + window.PP_LAYOUT[tierKey].label + ":", current);
-    if (input === null) return;
-    const n = parseInt(input, 10);
-    if (!isNaN(n) && n > 0) {
-      Storage.setTierTarget(tierKey, n);
+    if (confirm("Tick every product? This can't be undone item-by-item.")) {
+      Storage.selectAllTier(RANGE_KEY);
       render();
     }
   });
 
   document.getElementById("reset-btn").addEventListener("click", function () {
-    if (confirm("Start a new store? This will clear all ticked products (targets stay saved).")) {
+    if (confirm("Start a new store? This will clear all ticked products.")) {
       Storage.resetPPSession();
-      ppUi.wasAbove90 = false;
+      ppUi.wasComplete = false;
       render();
     }
   });

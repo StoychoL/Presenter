@@ -33,9 +33,13 @@ window.StateShape = (function () {
 
   function sanitizeSnapshot(snap) {
     if (!isObj(snap) || typeof snap.tierKey !== "string" || !isDate(snap.date)) return null;
+    // Ranges saved under the retired Partnership tiers (tier1/2/3) display as the single Range
+    // list (js/layout-pp.js), keeping their ticked products.
+    const layout = window.PP_LAYOUT;
+    const tierKey = (layout && !layout[snap.tierKey] && layout.range) ? "range" : snap.tierKey;
     return {
       date: snap.date,
-      tierKey: snap.tierKey,
+      tierKey: tierKey,
       checkedIds: arr(snap.checkedIds).filter(function (id) { return typeof id === "string"; }),
       checkedCount: nonNegInt(snap.checkedCount),
       target: Math.max(1, nonNegInt(snap.target)),

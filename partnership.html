@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://www.gstatic.com https://api.postcodes.io https://*.tile.openstreetmap.org; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://www.google.com/images/cleardot.gif; style-src 'self' 'unsafe-inline'; font-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'" />
-  <title>Partnership Program — Diageo</title>
+  <title>Range — Diageo</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#0b0b0d" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -14,10 +14,9 @@
 </head>
 <body>
   <main>
-    <div class="tier-tabs" id="tier-tabs"></div>
     <div class="tier-panel" id="tier-panel">
-      <div class="tier-hero"><img id="tier-hero-img" alt="" /></div>
-      <div class="tier-reward" id="tier-reward"></div>
+      <!-- Placeholder for the Range hero image (to be designed). -->
+      <div class="range-hero" id="range-hero"></div>
       <button class="btn secondary select-all-btn" id="select-all-btn">Select all</button>
       <div id="tier-sections"></div>
     </div>
@@ -25,8 +24,6 @@
 
   <div class="progress-badge" id="progress-badge">
     <div class="frac" id="progress-frac">0 / 0</div>
-    <div class="pct" id="progress-pct">0%</div>
-    <div class="target-edit" id="target-edit">edit target</div>
   </div>
 
   <div class="reset-bar">
@@ -58,6 +55,7 @@
 
   <script type="module" src="js/firebase-config.js"></script>
   <script src="js/catalog.js"></script>
+  <script src="js/layout-products.js"></script>
   <script src="js/layout-pp.js"></script>
   <script src="js/pp-stats.js"></script>
   <script src="js/state-shape.js"></script>

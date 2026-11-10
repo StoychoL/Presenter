@@ -360,14 +360,14 @@ function saveRangeEdit(store, history) {
   const state = Storage.loadState();
   if (history.length === 0) {
     const tierKey = mapUi.rangeNewTier;
-    const target = state.targetCounts[tierKey] || 1;
+    const target = state.targetCounts[tierKey] || window.PP_LAYOUT[tierKey].targetCount || 1;
     const snapshot = window.PPStats.buildSnapshot(tierKey, Array.from(mapUi.rangeEditChecked), target, todayISO());
     Storage.savePPSnapshot(mapUi.rangeKey, snapshot);
     mapUi.rangeIndex = 0;
     mapUi.rangeNewTier = null;
   } else {
     const snapshot = history[mapUi.rangeIndex];
-    const target = state.targetCounts[snapshot.tierKey] || 1;
+    const target = state.targetCounts[snapshot.tierKey] || window.PP_LAYOUT[snapshot.tierKey].targetCount || 1;
     // Date is deliberately preserved (same date, same index) — this overwrites the existing
     // snapshot in place rather than creating a new dated entry.
     const updated = window.PPStats.buildSnapshot(snapshot.tierKey, Array.from(mapUi.rangeEditChecked), target, snapshot.date);
@@ -393,19 +393,19 @@ function renderRangeModal(state) {
     document.getElementById("range-snapshot-tabs").innerHTML = "";
     if (!mapUi.rangeEditing) {
       detail.innerHTML =
-        '<p class="range-snapshot-summary">No saved range yet for this store — pick a tier to start one.</p>' +
+        '<p class="range-snapshot-summary">No saved range yet for this store.</p>' +
         '<div class="tier-tabs range-tier-picker">' +
           Object.keys(window.PP_LAYOUT).map(function (tierKey) {
             return '<button type="button" data-action="range-new-tier" data-tier="' + tierKey + '">' +
-              escAttr(window.PP_LAYOUT[tierKey].label) + "</button>";
+              "Start range</button>";
           }).join("") +
         "</div>";
     } else {
       const tierKey = mapUi.rangeNewTier;
       const tier = window.PP_LAYOUT[tierKey];
-      const target = state.targetCounts[tierKey] || 1;
+      const target = state.targetCounts[tierKey] || window.PP_LAYOUT[tierKey].targetCount || 1;
       const stats = window.PPStats.tierStats(tier, target, mapUi.rangeEditChecked);
-      const unlockedTag = stats.unlocked ? ' <span class="core-status complete">Unlocked</span>' : "";
+      const unlockedTag = "";
       detail.innerHTML =
         '<p class="range-snapshot-summary">' + escAttr(tier.label) + " &middot; " +
           stats.checkedCount + "/" + stats.target + " (" + stats.pct + "%)" + unlockedTag + "</p>" +
@@ -429,9 +429,9 @@ function renderRangeModal(state) {
   }).join("");
 
   if (mapUi.rangeEditing) {
-    const target = state.targetCounts[snapshot.tierKey] || 1;
+    const target = state.targetCounts[snapshot.tierKey] || window.PP_LAYOUT[snapshot.tierKey].targetCount || 1;
     const stats = window.PPStats.tierStats(tier, target, mapUi.rangeEditChecked);
-    const unlockedTag = stats.unlocked ? ' <span class="core-status complete">Unlocked</span>' : "";
+    const unlockedTag = "";
     detail.innerHTML =
       '<p class="range-snapshot-summary">' + escAttr(tier.label) + " &middot; " +
         stats.checkedCount + "/" + stats.target + " (" + stats.pct + "%)" + unlockedTag + "</p>" +
@@ -441,10 +441,13 @@ function renderRangeModal(state) {
       "</div>" +
       window.PPSnapshot.sectionsHtml(snapshot.tierKey, Array.from(mapUi.rangeEditChecked), { editable: true });
   } else {
-    const unlockedTag = snapshot.unlocked ? ' <span class="core-status complete">Unlocked</span>' : "";
+    const unlockedTag = "";
+    // Recounted against today's Range list, so a range saved under the old Partnership tiers
+    // (e.g. 18/20) reads as its ticks out of the full product list.
+    const viewStats = window.PPStats.tierStats(tier, tier.targetCount || snapshot.target, new Set(snapshot.checkedIds));
     detail.innerHTML =
       '<p class="range-snapshot-summary">' + escAttr(tier.label) + " &middot; " + formatDate(snapshot.date) + " &middot; " +
-        snapshot.checkedCount + "/" + snapshot.target + " (" + snapshot.pct + "%)" + unlockedTag + "</p>" +
+        viewStats.checkedCount + "/" + viewStats.target + " (" + viewStats.pct + "%)" + unlockedTag + "</p>" +
       '<div class="range-modal-actions"><button type="button" class="btn secondary small" data-action="range-edit">Edit</button></div>' +
       window.PPSnapshot.sectionsHtml(snapshot.tierKey, snapshot.checkedIds, { editable: false });
   }

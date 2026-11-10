@@ -65,7 +65,8 @@ function ppSnapshotSectionsHtml(tierKey, checkedIds, opts) {
       return editable ? ppEditableTileHtml(id, checkedSet.has(id)) : ppReadOnlyTileHtml(id, checkedSet.has(id));
     }).join("");
     const gateTag = editable ? ppGateTagHtml(section, checkedSet) : "";
-    return '<section class="category"><h3>' + escAttr(section.label) + gateTag + '</h3><div class="tile-grid">' + tiles + "</div></section>";
+    const heading = (section.label || gateTag) ? "<h3>" + escAttr(section.label) + gateTag + "</h3>" : "";
+    return '<section class="category">' + heading + '<div class="tile-grid">' + tiles + "</div></section>";
   }).join("");
 }
 

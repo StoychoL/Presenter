@@ -36,7 +36,7 @@ function defaultState() {
       activeWholesaler: "booker"
     },
     ppSession: {
-      activeTier: "tier3",
+      activeTier: "range",
       checked: {}
     },
     callfile: {
@@ -101,30 +101,9 @@ function loadState() {
       });
     }
     if ("pricesUpdatedAt" in parsed) base.pricesUpdatedAt = parsed.pricesUpdatedAt;
-    if (parsed.targetCounts && window.PP_LAYOUT) {
-      Object.keys(base.targetCounts).forEach(function (tierKey) {
-        // One-time migration: Tier 3's default target changed from 20 to 23 (Core Range 17 +
-        // Bonus Range 6 = 23 total products). A saved value of exactly 20 predates that fix, so
-        // treat it as unmigrated and let the new default through rather than carrying it forward.
-        if (tierKey === "tier3" && parsed.targetCounts[tierKey] === 20) return;
-        // One-time migration: Tier 3's default target changed from 23 back to 20 — Captain Morgan
-        // and Gordon's 35cl/20cl pairs now count as a single required slot each (matching Tier 2),
-        // and Smirnoff Crush Lemon&Lime/Mango&Peach became a merged pair too. A saved value of
-        // exactly 23 predates that fix — let the new default through instead.
-        if (tierKey === "tier3" && parsed.targetCounts[tierKey] === 23) return;
-        // One-time migration: Tier 2's default target changed from 25 to 26 (Core Range shrank to
-        // 13 shared products, Bonus Range grew to 13 with both Captain Morgan/Gordon's sizes). A
-        // saved value of exactly 25 predates that fix — let the new default through instead.
-        if (tierKey === "tier2" && parsed.targetCounts[tierKey] === 25) return;
-        // One-time migration: Tier 2's default target changed from 26 to 24 — Captain Morgan and
-        // Gordon's 35cl/20cl pairs now count as a single required slot each instead of two
-        // separately-counted products (see layout-pp.js's mergeCount / partnership.js's
-        // tierCheckedCount). A saved value of exactly 26 predates that fix — let the new default
-        // through instead.
-        if (tierKey === "tier2" && parsed.targetCounts[tierKey] === 26) return;
-        if (typeof parsed.targetCounts[tierKey] === "number") base.targetCounts[tierKey] = parsed.targetCounts[tierKey];
-      });
-    }
+    // With PP_LAYOUT loaded, targets always come from the layout (base.targetCounts): the Range
+    // list's target is simply its product count, and the old Partnership tier targets
+    // (tier1/2/3) no longer mean anything — see js/layout-pp.js.
     base.productsSession = window.StateShape.sanitizeProductsSession(raw_parsed.productsSession);
     base.ppSession = window.StateShape.sanitizePpSession(raw_parsed.ppSession, Object.keys(window.PP_LAYOUT || {}), base.ppSession.activeTier);
     base.callfileSession = window.StateShape.sanitizeCallfileSession(raw_parsed.callfileSession, base.callfileSession.activeGrade);
@@ -300,7 +279,9 @@ function hydrateFromCloud(rawSlice) {
     // product, never by some other device's whole stale list.
     state.prices = mergePrices(state, slice).prices;
   }
-  if (slice.targetCounts) state.targetCounts = slice.targetCounts;
+  // Targets come from js/layout-pp.js whenever it's loaded (see loadState); a cloud copy may
+  // still carry the retired Partnership tier targets.
+  if (slice.targetCounts && !window.PP_LAYOUT) state.targetCounts = slice.targetCounts;
   if (slice.callfile) {
     const localAt = state.callfile.updatedAt;
     const cloudAt = slice.callfile.updatedAt;
